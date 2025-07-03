@@ -73,4 +73,6 @@ export interface TeamFeature {
   apiKey: boolean;
   payments: boolean;
   deleteTeam: boolean;
+  mentalHealth: boolean;
+  ai: boolean;
 }

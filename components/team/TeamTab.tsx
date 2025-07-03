@@ -6,6 +6,8 @@ import {
   ShieldExclamationIcon,
   UserPlusIcon,
   BanknotesIcon,
+  VideoCameraIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 import type { Team } from '@prisma/client';
 import classNames from 'classnames';
@@ -38,6 +40,24 @@ const TeamTab = ({ activeTab, team, heading, teamFeatures }: TeamTabProps) => {
       href: `/teams/${team.slug}/members`,
       active: activeTab === 'members',
       icon: UserPlusIcon,
+    });
+  }
+
+  if (
+    teamFeatures.mentalHealth &&
+    canAccess('team_member', ['create', 'update', 'read', 'delete'])
+  ) {
+    navigations.push({
+      name: 'Patients',
+      href: `/teams/${team.slug}/patients`,
+      active: activeTab === 'patients',
+      icon: UserGroupIcon,
+    });
+    navigations.push({
+      name: 'Sessions',
+      href: `/teams/${team.slug}/sessions`,
+      active: activeTab === 'sessions',
+      icon: VideoCameraIcon,
     });
   }
 

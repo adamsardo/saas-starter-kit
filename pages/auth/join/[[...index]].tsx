@@ -94,4 +94,4 @@ export async function getServerSideProps(context: GetServerSidePropsContext) {
   };
 }
 
-export default Join;
+export default Join; 
