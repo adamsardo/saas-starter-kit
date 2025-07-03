@@ -1,0 +1,154 @@
+---
+globs: pages/api/**/*.ts
+---
+# API & Backend Patterns
+
+## API Route Structure
+All API routes follow Next.js conventions in `pages/api/` directory:
+```
+pages/api/
+├── auth/           # Authentication endpoints
+├── teams/          # Team management endpoints
+│   └── [slug]/     # Team-specific endpoints
+├── users.ts        # User profile management
+├── sessions/       # Session management
+└── webhooks/       # Webhook receivers
+```
+
+## Standard API Response Format
+```typescript
+// Success response
+res.status(200).json({ data: result });
+
+// Error response
+res.status(400).json({ error: { message: 'Error message' } });
+
+// Empty success response
+res.status(200).json({});
+
+// Delete success
+res.status(204).end();
+```
+
+## Request Handler Pattern
+```typescript
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
+  try {
+    // Feature flag check (if applicable)
+    if (!env.teamFeatures.webhook) {
+      throw new ApiError(404, 'Not Found');
+    }
+
+    switch (req.method) {
+      case 'GET':
+        await handleGET(req, res);
+        break;
+      case 'POST':
+        await handlePOST(req, res);
+        break;
+      default:
+        res.setHeader('Allow', 'GET, POST');
+        res.status(405).json({
+          error: { message: `Method ${req.method} Not Allowed` },
+        });
+    }
+  } catch (error: any) {
+    const message = error.message || 'Something went wrong';
+    const status = error.status || 500;
+    res.status(status).json({ error: { message } });
+  }
+}
+```
+
+## Input Validation with Zod
+Always validate request data using Zod schemas:
+```typescript
+import { validateWithSchema, createApiKeySchema } from '@/lib/zod';
+
+const { name } = validateWithSchema(createApiKeySchema, req.body);
+```
+
+## Authorization Patterns
+1. **Session Check**
+   ```typescript
+   const session = await getSession(req, res);
+   if (!session) {
+     throw new ApiError(401, 'Unauthorized');
+   }
+   ```
+
+2. **Team Access Check**
+   ```typescript
+   const teamMember = await throwIfNoTeamAccess(req, res);
+   ```
+
+3. **Permission Check**
+   ```typescript
+   throwIfNotAllowed(teamMember, 'team_webhook', 'create');
+   ```
+
+## Error Handling
+Use the custom `ApiError` class for consistent error responses:
+```typescript
+import { ApiError } from '@/lib/errors';
+
+throw new ApiError(404, 'Resource not found');
+throw new ApiError(422, 'Validation failed');
+```
+
+## Database Operations
+Use Prisma through model abstractions in `models/` directory:
+```typescript
+// Good - use model abstraction
+import { createUser } from 'models/user';
+const user = await createUser(data);
+
+// Avoid - direct Prisma usage in API routes
+const user = await prisma.user.create({ data });
+```
+
+## Security Best Practices
+1. **Never expose sensitive data**
+   ```typescript
+   // Use select to exclude sensitive fields
+   const apiKeys = await fetchApiKeys(teamId, {
+     select: { id: true, name: true, createdAt: true }
+   });
+   ```
+
+2. **Use parameterized queries** (handled by Prisma)
+
+3. **Validate all inputs** with Zod schemas
+
+4. **Check feature flags** before exposing endpoints
+
+5. **Rate limiting** (implement as needed)
+
+6. **Audit logging** for sensitive operations:
+   ```typescript
+   sendAudit({
+     action: 'webhook.create',
+     crud: 'c',
+     user: teamMember.user,
+     team: teamMember.team,
+   });
+   ```
+
+## Metrics & Monitoring
+Record metrics for important operations:
+```typescript
+import { recordMetric } from '@/lib/metrics';
+
+recordMetric('webhook.created');
+recordMetric('user.password.reset');
+```
+
+## Common Utilities
+- `extractAuthToken(req)` - Extract Bearer token from headers
+- `generateToken()` - Generate secure random tokens
+- `validateEmail()` - Email format validation
+- `slugify()` - Generate URL-safe slugs
+- `forceConsume(response)` - Prevent response body memory leaks

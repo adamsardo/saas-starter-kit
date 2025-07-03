@@ -1,0 +1,77 @@
+---
+description: Authentication and security patterns used in the SaaS starter kit
+---
+# Authentication & Security Patterns
+
+## Authentication System
+The app uses NextAuth.js configured in [lib/nextAuth.ts](mdc:lib/nextAuth.ts) with multiple providers:
+- **Credentials**: Email/password with bcrypt hashing
+- **Magic Links**: Passwordless email authentication  
+- **OAuth**: GitHub and Google social login
+- **SAML SSO**: Enterprise SSO via BoxyHQ SAML Jackson
+- **IdP-initiated**: Support for IdP-initiated SAML flows
+
+## Session Management
+- Supports both JWT and database session strategies (configured via `NEXTAUTH_SESSION_STRATEGY`)
+- Database sessions enable features like session management UI and revocation
+- Session tokens stored in secure HTTP-only cookies
+- Default session duration: 14 days
+
+## Security Features
+1. **Account Lockout** ([lib/accountLock.ts](mdc:lib/accountLock.ts))
+   - Max login attempts configurable (default: 5)
+   - Sends unlock email with verification token
+   - Clears attempts on successful login
+
+2. **Password Policies** ([lib/auth.ts](mdc:lib/auth.ts))
+   - Minimum 8 characters (configurable in `passwordPolicies`)
+   - Maximum 70 characters
+   - Validated on signup and password reset
+
+3. **Email Verification**
+   - Optional email verification (`CONFIRM_EMAIL=true`)
+   - Blocks login until email is verified
+   - Resend verification email functionality
+
+4. **reCAPTCHA Integration**
+   - Protects login, signup, and password reset forms
+   - Configured via `RECAPTCHA_SITE_KEY` and `RECAPTCHA_SECRET_KEY`
+
+5. **Security Headers** (middleware.ts)
+   - HSTS, X-Frame-Options, X-Content-Type-Options
+   - CSP headers when security headers enabled
+
+## Authorization Patterns
+1. **API Route Protection**
+   ```typescript
+   // Check session exists
+   const session = await getSession(req, res);
+   if (!session) {
+     return res.status(401).json({ error: 'Unauthorized' });
+   }
+   
+   // Check team access
+   const teamMember = await throwIfNoTeamAccess(req, res);
+   
+   // Check specific permissions
+   throwIfNotAllowed(teamMember, 'team_webhook', 'create');
+   ```
+
+2. **Page Protection** (middleware.ts)
+   - Public routes: auth pages, landing, API routes
+   - Protected routes require authentication
+   - Team-specific routes validate team membership
+
+3. **RBAC System**
+   - Roles: OWNER, ADMIN, MEMBER
+   - Permissions defined in [lib/permissions.ts](mdc:lib/permissions.ts)
+   - UI components use `AccessControl` wrapper
+
+## Best Practices
+- Never return sensitive data (passwords, API keys) in responses
+- Use `validateWithSchema` for input validation with Zod
+- Hash passwords with bcrypt (12 rounds)
+- Generate secure tokens with crypto.randomBytes
+- Validate email domains for business emails only (optional)
+- Clear all sessions on password reset
+- Use prepared statements via Prisma to prevent SQL injection

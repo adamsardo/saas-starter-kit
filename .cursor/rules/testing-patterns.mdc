@@ -1,0 +1,204 @@
+---
+globs: tests/**/*,__tests__/**/*,*.spec.ts,*.test.ts
+---
+# Testing Patterns & Conventions
+
+## Testing Stack
+- **Unit Tests**: Jest + Testing Library
+- **E2E Tests**: Playwright
+- **Test Runner**: `npm run test` (unit), `npm run test:e2e` (E2E)
+
+## Unit Testing Patterns
+
+### Test File Structure
+```typescript
+// __tests__/lib/common.spec.ts
+import { createRandomString, extractAuthToken } from '@/lib/common';
+
+describe('Common utilities', () => {
+  describe('createRandomString', () => {
+    it('should generate string of default length', () => {
+      const result = createRandomString();
+      expect(result).toHaveLength(6);
+    });
+
+    it('should generate string of specified length', () => {
+      const result = createRandomString(10);
+      expect(result).toHaveLength(10);
+    });
+  });
+});
+```
+
+### Mocking Patterns
+```typescript
+// Mock Prisma
+jest.mock('@/lib/prisma', () => ({
+  prisma: {
+    user: {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+    },
+  },
+}));
+
+// Mock NextAuth
+jest.mock('next-auth/react', () => ({
+  useSession: jest.fn(() => ({ 
+    data: mockSession, 
+    status: 'authenticated' 
+  })),
+}));
+```
+
+## E2E Testing with Playwright
+
+### Page Object Pattern
+```typescript
+// tests/e2e/support/fixtures/login-page.ts
+export class LoginPage {
+  constructor(private page: Page) {}
+
+  // Locators
+  get emailBox() {
+    return this.page.getByLabel('Email address');
+  }
+
+  get passwordBox() {
+    return this.page.getByLabel('Password');
+  }
+
+  get signInButton() {
+    return this.page.getByRole('button', { name: 'Sign in' });
+  }
+
+  // Actions
+  async goto() {
+    await this.page.goto('/auth/login');
+  }
+
+  async credentialLogin(email: string, password: string) {
+    await this.emailBox.fill(email);
+    await this.passwordBox.fill(password);
+    await this.signInButton.click();
+  }
+
+  // Assertions
+  async isLoggedIn() {
+    await expect(this.page).toHaveURL(/.*dashboard/);
+  }
+}
+```
+
+### Test Structure
+```typescript
+// tests/e2e/auth/login.spec.ts
+import { test, expect } from '@playwright/test';
+import { LoginPage } from '../support/fixtures/login-page';
+
+const user = {
+  name: 'Test User',
+  email: 'test@example.com',
+  password: 'Test123456',
+};
+
+test.describe('Authentication', () => {
+  test.beforeEach(async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.goto();
+  });
+
+  test('should login with valid credentials', async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.credentialLogin(user.email, user.password);
+    await loginPage.isLoggedIn();
+  });
+});
+```
+
+### Test Fixtures
+```typescript
+// tests/e2e/support/fixtures/index.ts
+const test = base.extend<{
+  loginPage: LoginPage;
+  settingsPage: SettingsPage;
+}>({
+  loginPage: async ({ page }, use) => {
+    const loginPage = new LoginPage(page);
+    await use(loginPage);
+  },
+  settingsPage: async ({ page }, use) => {
+    const settingsPage = new SettingsPage(page);
+    await use(settingsPage);
+  },
+});
+```
+
+## Database Setup/Teardown
+```typescript
+// tests/e2e/support/account.setup.ts
+test('create test account', async () => {
+  const hashedPassword = await hash(user.password, 12);
+  
+  await prisma.user.create({
+    data: {
+      name: user.name,
+      email: user.email,
+      password: hashedPassword,
+      emailVerified: new Date(),
+    },
+  });
+});
+
+// tests/e2e/support/account.teardown.ts
+test('cleanup test data', async () => {
+  await prisma.user.deleteMany({
+    where: { email: { contains: '@e2e.test' } },
+  });
+});
+```
+
+## Best Practices
+
+### General
+1. **Test behavior, not implementation**
+2. **Use descriptive test names** that explain what and why
+3. **Follow AAA pattern**: Arrange, Act, Assert
+4. **Keep tests independent** - no shared state
+5. **Use data-testid sparingly** - prefer semantic selectors
+
+### E2E Specific
+1. **Use Page Object Model** for maintainability
+2. **Run tests in parallel** where possible
+3. **Use test fixtures** for common setup
+4. **Mock external services** (Stripe, email, etc.)
+5. **Use unique test data** (e.g., `test-${Date.now()}@example.com`)
+
+### Assertions
+```typescript
+// Playwright assertions
+await expect(page).toHaveURL('/dashboard');
+await expect(page.locator('h1')).toHaveText('Welcome');
+await expect(button).toBeDisabled();
+await expect(input).toHaveValue('test@example.com');
+
+// Jest assertions
+expect(result).toBe(expected);
+expect(array).toHaveLength(3);
+expect(fn).toHaveBeenCalledWith(arg);
+expect(object).toMatchObject({ name: 'Test' });
+```
+
+## CI Configuration
+Tests run automatically on pull requests:
+- Unit tests run on every push
+- E2E tests run with `playwright/test` Docker image
+- HTML reports generated for failed tests
+- Retries enabled for flaky tests
+
+## Debugging Tips
+1. **Run specific test**: `npx playwright test login.spec.ts`
+2. **Debug mode**: `npx playwright test --debug`
+3. **UI mode**: `npx playwright test --ui`
+4. **Trace on failure**: Configured in `playwright.config.ts`
+5. **Screenshots**: Automatically captured on failure

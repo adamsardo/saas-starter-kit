@@ -1,0 +1,194 @@
+---
+globs: components/**/*.tsx,pages/**/*.tsx,hooks/**/*.ts
+---
+# Frontend & React Patterns
+
+## Component Structure
+Components are organized by feature in the `components/` directory:
+```
+components/
+├── account/        # User account management
+├── auth/           # Authentication components
+├── billing/        # Stripe billing components
+├── shared/         # Reusable UI components
+├── team/           # Team management
+└── webhook/        # Webhook management
+```
+
+## Component Patterns
+
+### Page Components
+```typescript
+interface PageProps {
+  // Props from getServerSideProps
+}
+
+const PageComponent: NextPageWithLayout<PageProps> = (props) => {
+  // Component logic
+  return <>{/* JSX */}</>;
+};
+
+PageComponent.getLayout = function getLayout(page: React.ReactElement) {
+  return <AccountLayout>{page}</AccountLayout>;
+};
+
+export const getServerSideProps = async (context) => {
+  // Server-side logic
+  return {
+    props: {
+      ...(await serverSideTranslations(context.locale, ['common'])),
+    }
+  };
+};
+```
+
+### Shared Components
+Follow these conventions for reusable components:
+```typescript
+interface ComponentProps {
+  children?: React.ReactNode;
+  className?: string;
+  // Other props with JSDoc comments
+}
+
+const Component = ({ children, className, ...props }: ComponentProps) => {
+  return (
+    <div className={classNames('base-classes', className)} {...props}>
+      {children}
+    </div>
+  );
+};
+
+export default Component;
+```
+
+## Styling Conventions
+1. **Use Tailwind CSS utility classes**
+   ```tsx
+   <div className="flex items-center justify-between p-4">
+   ```
+
+2. **DaisyUI components**
+   ```tsx
+   import { Button, Modal, Alert } from 'react-daisyui';
+   
+   <Button color="primary" size="md" loading={isLoading}>
+     Submit
+   </Button>
+   ```
+
+3. **Dark mode support**
+   ```tsx
+   <div className="bg-white dark:bg-black border-gray-200 dark:border-gray-600">
+   ```
+
+4. **Responsive design**
+   ```tsx
+   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+   ```
+
+## Form Handling with Formik
+```typescript
+const formik = useFormik({
+  initialValues: {
+    name: '',
+    email: '',
+  },
+  validationSchema: Yup.object().shape({
+    name: Yup.string().required().max(maxLengthPolicies.name),
+    email: Yup.string().required().email(),
+  }),
+  onSubmit: async (values) => {
+    const response = await fetch('/api/endpoint', {
+      method: 'POST',
+      headers: defaultHeaders,
+      body: JSON.stringify(values),
+    });
+    
+    const json = await response.json();
+    
+    if (!response.ok) {
+      toast.error(json.error.message);
+      return;
+    }
+    
+    toast.success('Success!');
+  },
+});
+```
+
+## Data Fetching with SWR
+```typescript
+import useSWR from 'swr';
+import { fetcher } from '@/lib/fetcher';
+
+const { data, error, isLoading, mutate } = useSWR(
+  '/api/teams',
+  fetcher
+);
+```
+
+## Custom Hooks Pattern
+```typescript
+// hooks/useTeams.ts
+const useTeams = () => {
+  const { data, error, isLoading } = useSWR<ApiResponse<Team[]>>(
+    '/api/teams',
+    fetcher
+  );
+
+  return {
+    teams: data?.data || [],
+    isLoading,
+    error,
+  };
+};
+```
+
+## Loading & Error States
+Use the `WithLoadingAndError` wrapper:
+```tsx
+<WithLoadingAndError isLoading={isLoading} error={error}>
+  {/* Content when loaded */}
+</WithLoadingAndError>
+```
+
+## Internationalization
+```typescript
+import { useTranslation } from 'next-i18next';
+
+const Component = () => {
+  const { t } = useTranslation('common');
+  
+  return <h1>{t('welcome')}</h1>;
+};
+```
+
+## Permission-based Rendering
+```tsx
+import { AccessControl } from '@/components/shared/AccessControl';
+
+<AccessControl resource="team_webhook" actions={['create']}>
+  <Button>Create Webhook</Button>
+</AccessControl>
+```
+
+## Toast Notifications
+```typescript
+import toast from 'react-hot-toast';
+
+toast.success('Operation successful');
+toast.error('Something went wrong');
+```
+
+## Best Practices
+1. **Use TypeScript** for all components and hooks
+2. **Colocate related components** in feature folders
+3. **Extract reusable logic** into custom hooks
+4. **Handle loading and error states** consistently
+5. **Use semantic HTML** elements
+6. **Add aria-labels** for accessibility
+7. **Memoize expensive computations** with useMemo
+8. **Avoid inline styles** - use Tailwind classes
+9. **Test user interactions** with Playwright
+10. **Follow the established patterns** in existing components

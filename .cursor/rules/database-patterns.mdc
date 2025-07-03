@@ -1,0 +1,178 @@
+---
+globs: prisma/**/*,models/**/*.ts
+---
+# Database & Prisma Patterns
+
+## Database Schema Overview
+The app uses PostgreSQL with Prisma ORM. Key models include:
+- **User**: Authentication and profile data
+- **Team**: Multi-tenancy support
+- **TeamMember**: Many-to-many relationship with roles
+- **Invitation**: Team invitation system
+- **ApiKey**: API key management
+- **Subscription/Price/Service**: Stripe billing integration
+
+## Prisma Best Practices
+
+### Model Abstractions
+Always use model files in `models/` instead of direct Prisma client usage:
+
+```typescript
+// Good - models/user.ts
+export const createUser = async (data: {
+  name: string;
+  email: string;
+  password?: string;
+}) => {
+  return await prisma.user.create({
+    data: normalizeUser(data),
+  });
+};
+
+// Bad - direct usage in API routes
+const user = await prisma.user.create({ data });
+```
+
+### Common Model Patterns
+```typescript
+// Create with normalization
+export const createTeam = async (data: Prisma.TeamCreateInput) => {
+  data.slug = slugify(data.name);
+  return await prisma.team.create({ data });
+};
+
+// Update with where clause
+export const updateUser = async ({ where, data }) => {
+  data = normalizeUser(data);
+  return await prisma.user.update({ where, data });
+};
+
+// Upsert pattern
+export const upsertUser = async ({ where, update, create }) => {
+  return await prisma.user.upsert({ where, update, create });
+};
+
+// Find with error handling
+export const getUser = async (key: { id: string } | { email: string }) => {
+  const user = await prisma.user.findUnique({ where: key });
+  return normalizeUser(user);
+};
+
+// Delete with cascade
+export const deleteTeam = async (id: string) => {
+  return await prisma.team.delete({ where: { id } });
+};
+```
+
+### Query Optimization
+1. **Use select to limit fields**
+   ```typescript
+   const members = await prisma.teamMember.findMany({
+     where: { teamId },
+     select: {
+       id: true,
+       role: true,
+       user: {
+         select: { id: true, name: true, email: true }
+       }
+     }
+   });
+   ```
+
+2. **Use include sparingly**
+   ```typescript
+   // Only include when needed
+   const team = await prisma.team.findUnique({
+     where: { slug },
+     include: { members: true } // Only if members are needed
+   });
+   ```
+
+3. **Pagination pattern**
+   ```typescript
+   const teams = await prisma.team.findMany({
+     skip: (page - 1) * limit,
+     take: limit,
+     orderBy: { createdAt: 'desc' }
+   });
+   ```
+
+## Security Patterns
+1. **Never expose sensitive fields**
+   ```typescript
+   // Always exclude password, hashedKey, etc.
+   const users = await prisma.user.findMany({
+     select: {
+       id: true,
+       name: true,
+       email: true,
+       // password: false - implicitly excluded
+     }
+   });
+   ```
+
+2. **Use transactions for multi-step operations**
+   ```typescript
+   await prisma.$transaction(async (tx) => {
+     const team = await tx.team.create({ data: teamData });
+     await tx.teamMember.create({
+       data: { teamId: team.id, userId, role: 'OWNER' }
+     });
+     return team;
+   });
+   ```
+
+## Data Normalization
+Always normalize data before storage:
+```typescript
+const normalizeUser = (user: any) => {
+  if (!user) return null;
+  
+  // Trim strings
+  if (user.name) user.name = user.name.trim();
+  if (user.email) user.email = user.email.toLowerCase().trim();
+  
+  // Remove sensitive fields from responses
+  delete user.password;
+  
+  return user;
+};
+```
+
+## Migration Best Practices
+1. **Test migrations locally first**
+   ```bash
+   npx prisma migrate dev --name descriptive_migration_name
+   ```
+
+2. **Review generated SQL** in `prisma/migrations/`
+
+3. **Use meaningful migration names** that describe the change
+
+4. **Never edit existing migrations** - create new ones
+
+5. **Handle data migrations carefully** - consider backward compatibility
+
+## Performance Considerations
+1. **Add indexes for frequently queried fields**
+   ```prisma
+   model User {
+     email String @unique
+     @@index([email])
+   }
+   ```
+
+2. **Use composite indexes for multi-field queries**
+   ```prisma
+   @@index([teamId, userId])
+   ```
+
+3. **Avoid N+1 queries** - use includes/joins appropriately
+
+4. **Use raw queries sparingly** and only for complex operations
+
+## Common Utilities
+- `generateToken()` - For secure token generation
+- `slugify()` - For URL-safe slugs
+- `hashPassword()` / `verifyPassword()` - For password handling
+- UUIDs as primary keys for better distribution

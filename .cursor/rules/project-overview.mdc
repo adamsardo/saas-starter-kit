@@ -1,0 +1,55 @@
+---
+alwaysApply: true
+---
+# BoxyHQ SaaS Starter Kit - Project Overview
+
+This is an enterprise-ready Next.js SaaS boilerplate built with TypeScript, featuring comprehensive authentication, team management, billing, and enterprise features.
+
+## Tech Stack
+- **Framework**: [next.config.js](mdc:next.config.js) - Next.js 15.x with TypeScript
+- **Database**: PostgreSQL with [prisma/schema.prisma](mdc:prisma/schema.prisma) - Prisma ORM
+- **Authentication**: [lib/nextAuth.ts](mdc:lib/nextAuth.ts) - NextAuth.js with multiple providers
+- **Styling**: Tailwind CSS + DaisyUI component library
+- **API**: RESTful endpoints in `pages/api/` following Next.js conventions
+- **State Management**: SWR for data fetching
+- **Testing**: Jest for unit tests, Playwright for E2E tests
+
+## Key Features
+- Multi-tenancy with teams/organizations
+- Enterprise SSO (SAML/OIDC) via SAML Jackson
+- Directory Sync (SCIM) for user provisioning
+- Stripe integration for payments and subscriptions
+- Webhook orchestration via Svix
+- Audit logs via Retraced
+- API key management
+- Dark mode support
+- Internationalization (i18n)
+- Email notifications via SMTP
+- Google reCAPTCHA integration
+- Account lockout protection
+
+## Project Structure
+```
+├── pages/              # Next.js pages and API routes
+├── components/         # React components organized by feature
+├── lib/               # Core utilities and configurations
+├── models/            # Prisma model abstractions
+├── hooks/             # Custom React hooks
+├── prisma/            # Database schema and migrations
+├── tests/             # Test files (unit and E2E)
+├── locales/           # i18n translation files
+└── types/             # TypeScript type definitions
+```
+
+## Environment Configuration
+Key environment variables are defined in [lib/env.ts](mdc:lib/env.ts):
+- Database, authentication, email settings
+- Feature flags for team features (SSO, API keys, webhooks, etc.)
+- Third-party service credentials (Stripe, Svix, etc.)
+
+## Development Workflow
+1. Database migrations: `npx prisma db push` or `npx prisma migrate dev`
+2. Development server: `npm run dev` (runs on port 4002)
+3. Type checking: `npm run check-types`
+4. Linting: `npm run check-lint`
+5. Testing: `npm run test` (unit) or `npm run test:e2e` (E2E)
