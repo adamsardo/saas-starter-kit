@@ -102,7 +102,7 @@ export const resendLinkRequestSchema = z.object({
 });
 
 export const deleteSessionSchema = z.object({
-  id: sessionId,
+  sessionId: sessionId,
 });
 
 export const forgotPasswordSchema = z.object({

@@ -28,20 +28,20 @@ export default async function handler(
 
 // Delete a session for the current user
 const handleDELETE = async (req: NextApiRequest, res: NextApiResponse) => {
-  const { id } = validateWithSchema(deleteSessionSchema, req.query);
+  const { sessionId } = validateWithSchema(deleteSessionSchema, req.query);
 
   const session = await getSession(req, res);
 
   await findFirstSessionOrThrown({
     where: {
-      id,
+      id: sessionId,
       userId: session?.user.id,
     },
   });
 
   await deleteSession({
     where: {
-      id,
+      id: sessionId,
     },
   });
 
