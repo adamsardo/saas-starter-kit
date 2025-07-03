@@ -11,6 +11,9 @@ enum Role {
   ADMIN
   OWNER
   MEMBER
+  THERAPIST
+  SUPERVISOR
+  CLINICAL_ADMIN
 }
 
 model Account {
@@ -69,6 +72,14 @@ model User {
   accounts    Account[]
   sessions    Session[]
   invitations Invitation[]
+  
+  // Mental Health Platform Relations
+  assignedPatients      Patient[]        @relation("TherapistPatients")
+  therapySessions       TherapySession[] @relation("TherapistSessions")
+  clinicalDocuments     ClinicalDocument[] @relation("TherapistDocuments")
+  treatmentPlans        TreatmentPlan[]  @relation("TherapistTreatmentPlans")
+  riskAssessments       RiskAssessment[] @relation("TherapistRiskAssessments")
+  createdTemplates      DocumentTemplate[] @relation("CreatedTemplates")
 
   @@index([clerkUserId])
 }
@@ -88,6 +99,15 @@ model Team {
   members         TeamMember[]
   invitations     Invitation[]
   apiKeys         ApiKey[]
+  
+  // Mental Health Platform Relations
+  patients        Patient[]
+  sessions        TherapySession[]
+  documents       ClinicalDocument[]
+  treatmentPlans  TreatmentPlan[]
+  riskAssessments RiskAssessment[]
+  templates       DocumentTemplate[]
+  transcriptionJobs TranscriptionJob[]
 
   @@index([billingId])
   @@index([clerkOrgId])
@@ -224,4 +244,399 @@ model jackson_ttl {
 
   @@index([expiresAt], map: "_jackson_ttl_expires_at")
   @@ignore
+}
+
+// Mental Health Platform Models
+
+model Patient {
+  id                String   @id @default(uuid())
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime
+  email             String?
+  phone             String?
+  emergencyContact  String?
+  emergencyPhone    String?
+  
+  // Clinical Information
+  primaryDiagnosis  String?
+  secondaryDiagnoses String[]
+  medications       String[]
+  allergies         String[]
+  
+  // Assignment and Access
+  teamId            String
+  assignedTherapistId String?
+  
+  // Privacy and Security
+  consentForRecording Boolean @default(false)
+  hipaaAcknowledged   Boolean @default(false)
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  isActive          Boolean  @default(true)
+  
+  // Relationships
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  assignedTherapist User?    @relation("TherapistPatients", fields: [assignedTherapistId], references: [id])
+  sessions          TherapySession[]
+  documents         ClinicalDocument[]
+  treatmentPlans    TreatmentPlan[]
+  riskAssessments   RiskAssessment[]
+  
+  @@index([teamId])
+  @@index([assignedTherapistId])
+  @@index([email])
+}
+
+model TherapySession {
+  id                String   @id @default(uuid())
+  patientId         String
+  therapistId       String
+  teamId            String
+  
+  // Session Details
+  sessionType       SessionType @default(INDIVIDUAL)
+  modality          TherapyModality @default(CBT)
+  scheduledAt       DateTime
+  startedAt         DateTime?
+  endedAt           DateTime?
+  duration          Int? // minutes
+  
+  // Session Status
+  status            SessionStatus @default(SCHEDULED)
+  location          String? // room/virtual platform
+  
+  // Recording and Transcription
+  hasRecording      Boolean @default(false)
+  audioFileUrl      String?
+  transcriptionId   String?
+  transcriptionText String? @db.Text
+  
+  // Clinical Notes
+  soapNotes         String? @db.Text
+  progressNotes     String? @db.Text
+  interventions     String[] @default([])
+  homework          String?
+  nextSessionGoals  String?
+  
+  // Risk and Safety
+  riskLevel         RiskLevel @default(LOW)
+  safetyPlan        String?
+  crisisFlags       String[]
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapist         User     @relation("TherapistSessions", fields: [therapistId], references: [id])
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  documents         ClinicalDocument[]
+  transcriptionJob  TranscriptionJob?
+  riskAssessments   RiskAssessment[]
+  
+  @@index([patientId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model ClinicalDocument {
+  id                String   @id @default(uuid())
+  patientId         String
+  sessionId         String?
+  therapistId       String
+  teamId            String
+  
+  // Document Details
+  type              DocumentType
+  title             String
+  content           String   @db.Text
+  
+  // Generation Details
+  generatedBy       GenerationMethod @default(MANUAL)
+  aiModel           String? // e.g., "gpt-4o", "claude-3-5-sonnet"
+  sourceTranscript  String? @db.Text
+  templateUsed      String?
+  
+  // Document Status
+  status            DocumentStatus @default(DRAFT)
+  reviewedBy        String? // User ID who reviewed
+  reviewedAt        DateTime?
+  approvedBy        String? // User ID who approved
+  approvedAt        DateTime?
+  
+  // Version Control
+  version           Int      @default(1)
+  parentDocumentId  String? // For versioning
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  session           TherapySession? @relation(fields: [sessionId], references: [id])
+  therapist         User     @relation("TherapistDocuments", fields: [therapistId], references: [id])
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  parentDocument    ClinicalDocument? @relation("DocumentVersions", fields: [parentDocumentId], references: [id])
+  childDocuments    ClinicalDocument[] @relation("DocumentVersions")
+  
+  @@index([patientId])
+  @@index([sessionId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([type])
+  @@index([status])
+}
+
+model TreatmentPlan {
+  id                String   @id @default(uuid())
+  patientId         String
+  therapistId       String
+  teamId            String
+  
+  // Plan Details
+  primaryGoals      String[] @default([])
+  objectives        String[] @default([])
+  interventions     String[] @default([])
+  frequency         String? // e.g., "Weekly", "Bi-weekly"
+  estimatedDuration Int? // weeks
+  
+  // Progress Tracking
+  currentPhase      String?
+  progressMarkers   String[] @default([])
+  completedGoals    String[] @default([])
+  
+  // Plan Status
+  status            TreatmentStatus @default(ACTIVE)
+  startDate         DateTime @default(now())
+  endDate           DateTime?
+  reviewDate        DateTime?
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapist         User     @relation("TherapistTreatmentPlans", fields: [therapistId], references: [id])
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  @@index([patientId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([status])
+}
+
+model RiskAssessment {
+  id                String   @id @default(uuid())
+  patientId         String
+  therapistId       String
+  teamId            String
+  sessionId         String?
+  
+  // Risk Evaluation
+  suicidalIdeation  RiskLevel @default(LOW)
+  selfHarm          RiskLevel @default(LOW)
+  homicidalIdeation RiskLevel @default(LOW)
+  substanceUse      RiskLevel @default(LOW)
+  overallRisk       RiskLevel @default(LOW)
+  
+  // Assessment Details
+  riskFactors       String[] @default([])
+  protectiveFactors String[] @default([])
+  interventions     String[] @default([])
+  safetyPlan        String?
+  
+  // Follow-up
+  requiresImmediate Boolean @default(false)
+  nextReview        DateTime?
+  notifiedPersons   String[] @default([])
+  
+  // Metadata
+  assessmentDate    DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapist         User     @relation("TherapistRiskAssessments", fields: [therapistId], references: [id])
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  session           TherapySession? @relation(fields: [sessionId], references: [id])
+  
+  @@index([patientId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([overallRisk])
+  @@index([requiresImmediate])
+}
+
+model DocumentTemplate {
+  id                String   @id @default(uuid())
+  teamId            String
+  createdBy         String
+  
+  // Template Details
+  name              String
+  description       String?
+  type              DocumentType
+  modality          TherapyModality?
+  
+  // Template Content
+  template          String   @db.Text
+  placeholders      String[] @default([])
+  requiredFields    String[] @default([])
+  
+  // Usage and Sharing
+  isPublic          Boolean  @default(false)
+  usageCount        Int      @default(0)
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator           User     @relation("CreatedTemplates", fields: [createdBy], references: [id])
+  
+  @@index([teamId])
+  @@index([type])
+  @@index([modality])
+  @@index([isPublic])
+}
+
+model TranscriptionJob {
+  id                String   @id @default(uuid())
+  sessionId         String
+  teamId            String
+  
+  // Job Details
+  audioFileUrl      String
+  audioFileName     String
+  fileSizeBytes     BigInt
+  durationSeconds   Int?
+  
+  // Deepgram Configuration
+  model             String   @default("nova-3-medical")
+  language          String   @default("en")
+  customKeywords    String[] @default([])
+  
+  // Job Status
+  status            TranscriptionStatus @default(PENDING)
+  deepgramJobId     String?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  // Results
+  transcriptText    String?  @db.Text
+  confidence        Float?
+  speakerCount      Int?
+  speakerLabels     Json?
+  
+  // Error Handling
+  errorMessage      String?
+  retryCount        Int      @default(0)
+  
+  // Metadata
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  session           TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  team              Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  @@unique([sessionId])
+  @@index([teamId])
+  @@index([status])
+  @@index([deepgramJobId])
+}
+
+// Enums for Mental Health Platform
+
+enum SessionType {
+  INDIVIDUAL
+  GROUP
+  FAMILY
+  COUPLES
+  INTAKE
+  ASSESSMENT
+}
+
+enum TherapyModality {
+  CBT     // Cognitive Behavioral Therapy
+  DBT     // Dialectical Behavior Therapy
+  EMDR    // Eye Movement Desensitization and Reprocessing
+  ACT     // Acceptance and Commitment Therapy
+  PSYCHODYNAMIC
+  HUMANISTIC
+  FAMILY_SYSTEMS
+  TRAUMA_INFORMED
+  SOLUTION_FOCUSED
+  OTHER
+}
+
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum DocumentType {
+  SESSION_NOTES
+  TREATMENT_PLAN
+  PROGRESS_REPORT
+  ASSESSMENT_SUMMARY
+  INSURANCE_AUTH
+  CRISIS_REPORT
+  DISCHARGE_SUMMARY
+  REFERRAL_LETTER
+  INTAKE_NOTES
+  CUSTOM
+}
+
+enum GenerationMethod {
+  MANUAL
+  AI_GENERATED
+  AI_ASSISTED
+  TEMPLATE_BASED
+}
+
+enum DocumentStatus {
+  DRAFT
+  PENDING_REVIEW
+  REVIEWED
+  APPROVED
+  FINAL
+  ARCHIVED
+}
+
+enum TreatmentStatus {
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  TERMINATED
+  TRANSFERRED
+}
+
+enum TranscriptionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
 }

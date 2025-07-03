@@ -157,6 +157,62 @@ const env = {
     rateLimitPerUser: Number(process.env.AI_RATE_LIMIT_PER_USER) || 100,
     rateLimitWindow: Number(process.env.AI_RATE_LIMIT_WINDOW) || 3600, // 1 hour in seconds
   },
+
+  // Deepgram configuration for medical transcription
+  deepgram: {
+    apiKey: process.env.DEEPGRAM_API_KEY,
+    model: process.env.DEEPGRAM_MODEL || 'nova-3-medical',
+    language: process.env.DEEPGRAM_LANGUAGE || 'en',
+    webhookSecret: process.env.DEEPGRAM_WEBHOOK_SECRET,
+    // Feature flags
+    enabled: process.env.FEATURE_DEEPGRAM_ENABLED !== 'false',
+    // Real-time transcription settings
+    realtime: {
+      enabled: process.env.FEATURE_DEEPGRAM_REALTIME !== 'false',
+      sampleRate: Number(process.env.DEEPGRAM_SAMPLE_RATE) || 16000,
+      channels: Number(process.env.DEEPGRAM_CHANNELS) || 1,
+    },
+    // Advanced features
+    features: {
+      diarization: process.env.DEEPGRAM_DIARIZATION !== 'false',
+      punctuation: process.env.DEEPGRAM_PUNCTUATION !== 'false',
+      smartFormatting: process.env.DEEPGRAM_SMART_FORMATTING !== 'false',
+      keywords: process.env.DEEPGRAM_KEYWORDS?.split(',') || [],
+    },
+  },
+
+  // Mental Health Platform configuration
+  mentalHealth: {
+    // HIPAA compliance settings
+    hipaaCompliant: process.env.MENTAL_HEALTH_HIPAA_COMPLIANT !== 'false',
+    auditLogging: process.env.MENTAL_HEALTH_AUDIT_LOGGING !== 'false',
+    
+    // Session recording settings
+    recording: {
+      enabled: process.env.FEATURE_SESSION_RECORDING !== 'false',
+      maxDuration: Number(process.env.SESSION_MAX_DURATION) || 120, // minutes
+      autoTranscribe: process.env.FEATURE_AUTO_TRANSCRIBE !== 'false',
+      autoGenerateNotes: process.env.FEATURE_AUTO_GENERATE_NOTES !== 'false',
+    },
+    
+    // Risk assessment settings
+    riskAssessment: {
+      enabled: process.env.FEATURE_RISK_ASSESSMENT !== 'false',
+      autoTriggers: process.env.FEATURE_AUTO_RISK_TRIGGERS !== 'false',
+      emergencyNotifications: process.env.FEATURE_EMERGENCY_NOTIFICATIONS !== 'false',
+    },
+    
+    // Document generation settings
+    documentGeneration: {
+      enabled: process.env.FEATURE_DOCUMENT_GENERATION !== 'false',
+      defaultModel: process.env.DOCUMENT_AI_MODEL || 'gpt-4o',
+      templates: {
+        soap: process.env.FEATURE_SOAP_TEMPLATES !== 'false',
+        treatmentPlan: process.env.FEATURE_TREATMENT_PLAN_TEMPLATES !== 'false',
+        progressReport: process.env.FEATURE_PROGRESS_REPORT_TEMPLATES !== 'false',
+      },
+    },
+  },
 };
 
 export default env;
