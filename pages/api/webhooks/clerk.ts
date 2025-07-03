@@ -57,46 +57,70 @@ export default async function handler(
           break;
         }
 
-        await prisma.user.upsert({
+        // Check if user already exists by email
+        const existingUser = await prisma.user.findUnique({
           where: { email: primaryEmail.email_address },
-          update: {
-            name: `${first_name || ''} ${last_name || ''}`.trim() || undefined,
-            image: image_url,
-            emailVerified: primaryEmail.verification?.status === 'verified' ? new Date() : null,
-          },
-          create: {
-            id,
-            email: primaryEmail.email_address,
-            name: `${first_name || ''} ${last_name || ''}`.trim() || '',
-            image: image_url,
-            emailVerified: primaryEmail.verification?.status === 'verified' ? new Date() : null,
-          },
         });
+
+        if (existingUser) {
+          // Update existing user with Clerk ID
+          await prisma.user.update({
+            where: { email: primaryEmail.email_address },
+            data: {
+              clerkUserId: id,
+              name: `${first_name || ''} ${last_name || ''}`.trim() || undefined,
+              image: image_url,
+              emailVerified: primaryEmail.verification?.status === 'verified' ? new Date() : null,
+              migratedToClerk: true,
+            },
+          });
+        } else {
+          // Create new user
+          await prisma.user.create({
+            data: {
+              clerkUserId: id,
+              email: primaryEmail.email_address,
+              name: `${first_name || ''} ${last_name || ''}`.trim() || '',
+              image: image_url,
+              emailVerified: primaryEmail.verification?.status === 'verified' ? new Date() : null,
+              migratedToClerk: true,
+            },
+          });
+        }
         break;
       }
 
       case 'user.deleted': {
         const { id } = evt.data;
         
-        // Soft delete or handle according to your requirements
-        await prisma.user.update({
-          where: { id },
-          data: { 
-            // You might want to add a deletedAt field instead of hard delete
-            email: `deleted_${id}@deleted.local`,
-          },
+        // Find user by Clerk ID
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: id },
         });
+
+        if (user) {
+          // Soft delete or handle according to your requirements
+          await prisma.user.update({
+            where: { clerkUserId: id },
+            data: { 
+              // You might want to add a deletedAt field instead of hard delete
+              email: `deleted_${id}@deleted.local`,
+            },
+          });
+        }
         break;
       }
 
       case 'organization.created': {
-        const { id, name, slug } = evt.data;
+        const { id, name, slug, created_at } = evt.data;
         
         await prisma.team.create({
           data: {
-            id,
+            clerkOrgId: id,
             name,
             slug: slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+            createdAt: new Date(created_at),
+            migratedToClerk: true,
           },
         });
         break;
@@ -106,7 +130,7 @@ export default async function handler(
         const { id, name, slug } = evt.data;
         
         await prisma.team.update({
-          where: { id },
+          where: { clerkOrgId: id },
           data: { 
             name,
             slug: slug || name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
@@ -120,7 +144,7 @@ export default async function handler(
         
         // Delete team and all related data
         await prisma.team.delete({
-          where: { id },
+          where: { clerkOrgId: id },
         });
         break;
       }
@@ -128,37 +152,73 @@ export default async function handler(
       case 'organizationMembership.created': {
         const { organization, public_user_data, role } = evt.data;
         
+        // Find user by Clerk ID
         const user = await prisma.user.findUnique({
-          where: { id: public_user_data.user_id },
+          where: { clerkUserId: public_user_data.user_id },
         });
 
-        if (!user) {
-          console.error('User not found for membership', public_user_data.user_id);
+        // Find team by Clerk organization ID
+        const team = await prisma.team.findUnique({
+          where: { clerkOrgId: organization.id },
+        });
+
+        if (!user || !team) {
+          console.error('User or team not found for membership', {
+            userId: public_user_data.user_id,
+            orgId: organization.id,
+          });
           break;
         }
 
         const mappedRole = CLERK_ROLES[role as keyof typeof CLERK_ROLES] || Role.MEMBER;
 
-        await prisma.teamMember.create({
-          data: {
-            teamId: organization.id,
-            userId: user.id,
-            role: mappedRole,
+        // Check if membership already exists
+        const existingMembership = await prisma.teamMember.findUnique({
+          where: {
+            teamId_userId: {
+              teamId: team.id,
+              userId: user.id,
+            },
           },
         });
+
+        if (!existingMembership) {
+          await prisma.teamMember.create({
+            data: {
+              teamId: team.id,
+              userId: user.id,
+              role: mappedRole,
+            },
+          });
+        }
         break;
       }
 
       case 'organizationMembership.updated': {
         const { organization, public_user_data, role } = evt.data;
         
+        // Find user by Clerk ID
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: public_user_data.user_id },
+        });
+
+        // Find team by Clerk organization ID
+        const team = await prisma.team.findUnique({
+          where: { clerkOrgId: organization.id },
+        });
+
+        if (!user || !team) {
+          console.error('User or team not found for membership update');
+          break;
+        }
+
         const mappedRole = CLERK_ROLES[role as keyof typeof CLERK_ROLES] || Role.MEMBER;
 
         await prisma.teamMember.update({
           where: {
             teamId_userId: {
-              teamId: organization.id,
-              userId: public_user_data.user_id,
+              teamId: team.id,
+              userId: user.id,
             },
           },
           data: {
@@ -171,11 +231,26 @@ export default async function handler(
       case 'organizationMembership.deleted': {
         const { organization, public_user_data } = evt.data;
         
+        // Find user by Clerk ID
+        const user = await prisma.user.findUnique({
+          where: { clerkUserId: public_user_data.user_id },
+        });
+
+        // Find team by Clerk organization ID
+        const team = await prisma.team.findUnique({
+          where: { clerkOrgId: organization.id },
+        });
+
+        if (!user || !team) {
+          console.error('User or team not found for membership deletion');
+          break;
+        }
+
         await prisma.teamMember.delete({
           where: {
             teamId_userId: {
-              teamId: organization.id,
-              userId: public_user_data.user_id,
+              teamId: team.id,
+              userId: user.id,
             },
           },
         });

@@ -25,8 +25,55 @@ async function migrateUsers(): Promise<MigrationResult> {
   };
 
   try {
-    // Fetch all users from database
+    // First migrate teams to organizations
+    console.log('Migrating teams to Clerk organizations...');
+    const teams = await prisma.team.findMany({
+      where: { migratedToClerk: false },
+    });
+
+    for (const team of teams) {
+      try {
+        // Check if organization already exists
+        let organization;
+        const existingOrgs = await clerkClient.organizations.getOrganizationList({
+          query: team.slug,
+        });
+
+        if (existingOrgs.data.length > 0 && existingOrgs.data[0].slug === team.slug) {
+          organization = existingOrgs.data[0];
+          console.log(`Organization ${team.name} already exists in Clerk`);
+        } else {
+          // Create organization in Clerk
+          organization = await clerkClient.organizations.createOrganization({
+            name: team.name,
+            slug: team.slug,
+            publicMetadata: {
+              migratedFromNextAuth: true,
+              originalTeamId: team.id,
+              domain: team.domain,
+              defaultRole: team.defaultRole,
+            },
+          });
+          console.log(`Created organization ${team.name} in Clerk`);
+        }
+
+        // Update team with Clerk organization ID
+        await prisma.team.update({
+          where: { id: team.id },
+          data: { 
+            clerkOrgId: organization.id,
+            migratedToClerk: true,
+          },
+        });
+      } catch (error) {
+        console.error(`Failed to migrate team ${team.name}:`, error);
+      }
+    }
+
+    // Now migrate users
+    console.log('Migrating users to Clerk...');
     const users = await prisma.user.findMany({
+      where: { migratedToClerk: false },
       include: {
         teamMembers: {
           include: {
@@ -58,7 +105,7 @@ async function migrateUsers(): Promise<MigrationResult> {
               clerkUser = existingUsers.data[0];
             } else {
               // Create user in Clerk
-              clerkUser = await clerkClient.users.createUser({
+              const userData: any = {
                 emailAddress: [user.email],
                 firstName: user.name?.split(' ')[0] || '',
                 lastName: user.name?.split(' ').slice(1).join(' ') || '',
@@ -67,8 +114,18 @@ async function migrateUsers(): Promise<MigrationResult> {
                   migratedFromNextAuth: true,
                   originalUserId: user.id,
                 },
-              });
+              };
 
+              // Set email as verified if it was verified in the old system
+              if (user.emailVerified) {
+                userData.primaryEmailAddressID = user.email;
+                userData.emailAddress = [{
+                  emailAddress: user.email,
+                  verified: true,
+                }];
+              }
+
+              clerkUser = await clerkClient.users.createUser(userData);
               console.log(`Created user ${user.email} in Clerk`);
             }
 
@@ -76,37 +133,17 @@ async function migrateUsers(): Promise<MigrationResult> {
             await prisma.user.update({
               where: { id: user.id },
               data: { 
-                id: clerkUser.id, // Update to use Clerk's user ID
+                clerkUserId: clerkUser.id,
+                migratedToClerk: true,
               },
             });
 
             // Migrate team memberships as organization memberships
             for (const membership of user.teamMembers) {
               try {
-                // Check if organization exists
-                let organization;
-                try {
-                  organization = await clerkClient.organizations.getOrganization({
-                    organizationId: membership.team.id,
-                  });
-                } catch (error) {
-                  // Create organization if it doesn't exist
-                  organization = await clerkClient.organizations.createOrganization({
-                    name: membership.team.name,
-                    slug: membership.team.slug,
-                    publicMetadata: {
-                      migratedFromNextAuth: true,
-                      originalTeamId: membership.team.id,
-                    },
-                  });
-
-                  // Update team in database with Clerk organization ID
-                  await prisma.team.update({
-                    where: { id: membership.team.id },
-                    data: { id: organization.id },
-                  });
-
-                  console.log(`Created organization ${organization.name}`);
+                if (!membership.team.clerkOrgId) {
+                  console.log(`Team ${membership.team.name} not migrated yet, skipping membership`);
+                  continue;
                 }
 
                 // Add user to organization with appropriate role
@@ -116,13 +153,20 @@ async function migrateUsers(): Promise<MigrationResult> {
                     ? 'org:admin' 
                     : 'org:member';
 
-                await clerkClient.organizations.createOrganizationMembership({
-                  organizationId: organization.id,
+                // Check if membership already exists
+                const existingMemberships = await clerkClient.organizations.getOrganizationMembershipList({
+                  organizationId: membership.team.clerkOrgId,
                   userId: clerkUser.id,
-                  role: clerkRole,
                 });
 
-                console.log(`Added ${user.email} to organization ${organization.name} as ${clerkRole}`);
+                if (existingMemberships.data.length === 0) {
+                  await clerkClient.organizations.createOrganizationMembership({
+                    organizationId: membership.team.clerkOrgId,
+                    userId: clerkUser.id,
+                    role: clerkRole,
+                  });
+                  console.log(`Added ${user.email} to organization ${membership.team.name} as ${clerkRole}`);
+                }
               } catch (error) {
                 console.error(`Failed to migrate team membership for ${user.email}:`, error);
               }

@@ -40,9 +40,9 @@ export async function getSession(
     return null;
   }
 
-  // Get user from database
+  // Get user from database using Clerk ID
   const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { clerkUserId: userId },
   });
 
   if (!dbUser) {
@@ -75,18 +75,18 @@ export async function getCurrentUserWithTeam(
     throw new ApiError(401, 'Unauthorized');
   }
 
-  // Get user from database
+  // Get user from database using Clerk ID
   const dbUser = await prisma.user.findUnique({
-    where: { id: userId },
+    where: { clerkUserId: userId },
   });
 
   if (!dbUser) {
     throw new ApiError(401, 'User not found');
   }
 
-  // Get team
+  // Get team using Clerk organization ID
   const team = await prisma.team.findUnique({
-    where: { id: orgId },
+    where: { clerkOrgId: orgId },
   });
 
   if (!team) {

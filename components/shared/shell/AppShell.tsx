@@ -5,17 +5,23 @@ import React from 'react';
 import Header from './Header';
 import Drawer from './Drawer';
 import { useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 
 export default function AppShell({ children }) {
   const router = useRouter();
   const { status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, isLoaded: clerkLoaded } = useUser();
 
-  if (status === 'loading') {
+  // Use Clerk auth status if available, otherwise fall back to NextAuth
+  const isLoading = clerkLoaded === false || (clerkLoaded && !user && status === 'loading');
+  const isAuthenticated = user || status === 'authenticated';
+
+  if (isLoading) {
     return <Loading />;
   }
 
-  if (status === 'unauthenticated') {
+  if (!isAuthenticated) {
     router.push('/auth/login');
     return;
   }
@@ -23,14 +29,11 @@ export default function AppShell({ children }) {
   return (
     <div>
       <Drawer sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
-      <div className="lg:pl-64">
-        <Header setSidebarOpen={setSidebarOpen} />
-        <main className="py-5">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            {children}
-          </div>
-        </main>
-      </div>
+      <Header setSidebarOpen={setSidebarOpen} />
+
+      <main className="py-4 lg:pl-72">
+        <div className="px-4 sm:px-6 lg:px-8">{children}</div>
+      </main>
     </div>
   );
 }
