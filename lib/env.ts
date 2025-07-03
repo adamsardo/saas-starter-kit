@@ -200,7 +200,7 @@ const env = {
       bucketName: process.env.CLOUDFLARE_R2_BUCKET || 'medreport-recordings',
       endpoint: process.env.CLOUDFLARE_R2_ENDPOINT || '',
       publicUrl: process.env.CLOUDFLARE_R2_PUBLIC_URL || '', // If using public bucket
-      workerUrl: process.env.CLOUDFLARE_WORKER_URL || '', // Worker endpoint
+      workerUrl: process.env.CLOUDFLARE_WORKER_URL || 'https://transcripts.adamsardo98.workers.dev', // Worker endpoint
     },
     // Queues configuration
     queues: {
@@ -210,7 +210,7 @@ const env = {
     },
     // Workers configuration
     workers: {
-      scriptName: process.env.CLOUDFLARE_WORKER_NAME || 'batch-processor',
+      scriptName: process.env.CLOUDFLARE_WORKER_NAME || 'transcripts',
       kvNamespace: process.env.CLOUDFLARE_KV_NAMESPACE || 'TRANSCRIPTS',
     },
   },
