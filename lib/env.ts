@@ -157,6 +157,79 @@ const env = {
     rateLimitPerUser: Number(process.env.AI_RATE_LIMIT_PER_USER) || 100,
     rateLimitWindow: Number(process.env.AI_RATE_LIMIT_WINDOW) || 3600, // 1 hour in seconds
   },
+
+  // Deepgram configuration for medical transcription
+  deepgram: {
+    apiKey: process.env.DEEPGRAM_API_KEY || 'f81aa8d7fd87658e762f08a3c1915d114494cc32',
+    model: process.env.DEEPGRAM_MODEL || 'nova-3-medical',
+    language: process.env.DEEPGRAM_LANGUAGE || 'en-US',
+    // Medical model specific settings
+    medical: {
+      enabled: process.env.DEEPGRAM_MEDICAL_ENABLED !== 'false',
+      vocabulary: process.env.DEEPGRAM_MEDICAL_VOCABULARY?.split(',') || [],
+      diarize: process.env.DEEPGRAM_DIARIZE !== 'false', // Speaker identification
+      punctuate: process.env.DEEPGRAM_PUNCTUATE !== 'false',
+      profanityFilter: process.env.DEEPGRAM_PROFANITY_FILTER === 'true',
+      redact: process.env.DEEPGRAM_REDACT?.split(',') || [], // PII redaction
+      numerals: process.env.DEEPGRAM_NUMERALS !== 'false',
+    },
+  },
+
+  // Mental Health Platform specific settings
+  mentalHealth: {
+    // Session recording settings
+    maxSessionDuration: Number(process.env.MAX_SESSION_DURATION) || 90, // minutes
+    autoSaveInterval: Number(process.env.AUTO_SAVE_INTERVAL) || 30, // seconds
+    // Document generation settings
+    defaultTemplateModality: process.env.DEFAULT_TEMPLATE_MODALITY || 'CBT',
+    // Security settings
+    encryptPatientData: process.env.ENCRYPT_PATIENT_DATA !== 'false',
+    auditRetentionDays: Number(process.env.AUDIT_RETENTION_DAYS) || 2555, // 7 years for HIPAA
+    // Crisis management
+    crisisHotline: process.env.CRISIS_HOTLINE || '988',
+    emergencyProtocolUrl: process.env.EMERGENCY_PROTOCOL_URL || '/protocols/emergency',
+  },
+
+  // Cloudflare configuration (preferred over AWS)
+  cloudflare: {
+    // R2 Storage configuration
+    r2: {
+      accountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
+      accessKeyId: process.env.CLOUDFLARE_R2_ACCESS_KEY_ID || '',
+      secretAccessKey: process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY || '',
+      bucketName: process.env.CLOUDFLARE_R2_BUCKET || 'medreport-recordings',
+      endpoint: process.env.CLOUDFLARE_R2_ENDPOINT || '',
+      publicUrl: process.env.CLOUDFLARE_R2_PUBLIC_URL || '', // If using public bucket
+      workerUrl: process.env.CLOUDFLARE_WORKER_URL || '', // Worker endpoint
+    },
+    // Queues configuration
+    queues: {
+      accountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
+      queueId: process.env.CLOUDFLARE_QUEUE_ID || '',
+      apiToken: process.env.CLOUDFLARE_API_TOKEN || '',
+    },
+    // Workers configuration
+    workers: {
+      scriptName: process.env.CLOUDFLARE_WORKER_NAME || 'batch-processor',
+      kvNamespace: process.env.CLOUDFLARE_KV_NAMESPACE || 'TRANSCRIPTS',
+    },
+  },
+
+  // AWS configuration (kept for compatibility, but Cloudflare is preferred)
+  aws: {
+    region: process.env.AWS_REGION || 'ap-southeast-2',
+    s3: {
+      bucketName: process.env.AWS_S3_BUCKET || 'app-bucket-medreport',
+      bucketArn: process.env.AWS_S3_BUCKET_ARN || 'arn:aws:s3:::app-bucket-medreport',
+    },
+    sqs: {
+      queueName: process.env.AWS_SQS_QUEUE_NAME || 'MyQueue.fifo',
+      queueUrl: process.env.AWS_SQS_QUEUE_URL || 'https://sqs.ap-southeast-2.amazonaws.com/643165769127/MyQueue.fifo',
+      queueArn: process.env.AWS_SQS_QUEUE_ARN || 'arn:aws:sqs:ap-southeast-2:643165769127:MyQueue.fifo',
+    },
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID || '',
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || '',
+  },
 };
 
 export default env;

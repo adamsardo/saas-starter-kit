@@ -1,0 +1,41 @@
+name = "batch-processor"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+# Account details (replace with your account ID)
+account_id = "your-account-id"
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "AUDIO_BUCKET"
+bucket_name = "medreport-recordings"
+
+# Queue binding
+[[queues.producers]]
+binding = "TRANSCRIPTION_QUEUE"
+queue = "transcription-jobs"
+
+[[queues.consumers]]
+queue = "transcription-jobs"
+max_batch_size = 10
+max_batch_timeout = 30
+
+# KV namespace for storing transcripts
+[[kv_namespaces]]
+binding = "TRANSCRIPTS"
+id = "your-kv-namespace-id"
+
+# Durable Objects (optional, for advanced job coordination)
+[[durable_objects.bindings]]
+name = "BATCH_JOBS"
+class_name = "BatchJobCoordinator"
+script_name = "batch-processor"
+
+# Environment variables
+[vars]
+DEEPGRAM_API_KEY = "f81aa8d7fd87658e762f08a3c1915d114494cc32"
+# OPENAI_API_KEY will be set as a secret
+
+# Secrets (set these with wrangler secret put)
+# wrangler secret put OPENAI_API_KEY 

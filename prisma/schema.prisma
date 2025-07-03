@@ -69,6 +69,15 @@ model User {
   accounts    Account[]
   sessions    Session[]
   invitations Invitation[]
+  
+  // Mental health relations
+  patientsAsTherapist    Patient[]          @relation("PatientTherapist")
+  sessionsAsTherapist    TherapySession[]   @relation("SessionTherapist")
+  documentsAuthored      ClinicalDocument[] @relation("DocumentAuthor")
+  treatmentPlansAuthored TreatmentPlan[]    @relation("PlanAuthor")
+  templatesCreated       DocumentTemplate[] @relation("TemplateCreator")
+  careTeamMemberships    CareTeamMember[]   @relation("CareTeamMembership")
+  riskAssessments        RiskAssessment[]   @relation("RiskAssessor")
 
   @@index([clerkUserId])
 }
@@ -88,6 +97,14 @@ model Team {
   members         TeamMember[]
   invitations     Invitation[]
   apiKeys         ApiKey[]
+  
+  // Mental health relations
+  patients         Patient[]
+  therapySessions  TherapySession[]
+  clinicalDocuments ClinicalDocument[]
+  documentTemplates DocumentTemplate[]
+  treatmentPlans   TreatmentPlan[]
+  batchJobs        BatchProcessingJob[]
 
   @@index([billingId])
   @@index([clerkOrgId])
@@ -224,4 +241,359 @@ model jackson_ttl {
 
   @@index([expiresAt], map: "_jackson_ttl_expires_at")
   @@ignore
+}
+
+// Mental Health Platform Models
+
+enum PatientStatus {
+  ACTIVE
+  INACTIVE
+  DISCHARGED
+  TRANSFERRED
+}
+
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum DocumentType {
+  SOAP_NOTE
+  TREATMENT_PLAN
+  PROGRESS_REPORT
+  ASSESSMENT_SUMMARY
+  INSURANCE_AUTH
+  CRISIS_REPORT
+  DISCHARGE_SUMMARY
+  INTAKE_FORM
+}
+
+enum RiskLevel {
+  LOW
+  MODERATE
+  HIGH
+  CRITICAL
+}
+
+enum TherapyModality {
+  CBT
+  DBT
+  EMDR
+  PSYCHODYNAMIC
+  MINDFULNESS
+  FAMILY
+  GROUP
+  PLAY
+  ART
+  OTHER
+}
+
+model Patient {
+  id                String         @id @default(uuid())
+  teamId            String
+  therapistId       String
+  externalId        String?        // For integration with external systems
+  firstName         String
+  lastName          String
+  dateOfBirth       DateTime
+  email             String?
+  phone             String?
+  emergencyContact  Json?          // Structured emergency contact info
+  address           Json?          // Structured address
+  insuranceInfo     Json?          // Encrypted insurance details
+  status            PatientStatus  @default(ACTIVE)
+  riskLevel         RiskLevel      @default(LOW)
+  diagnoses         String[]       // ICD-10 codes
+  medications       Json[]         // Array of medication objects
+  allergies         String[]
+  notes             String?        @db.Text
+  consentForms      Json[]         // Array of consent form records
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  lastSessionDate   DateTime?
+  nextSessionDate   DateTime?
+  
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  therapist         User           @relation("PatientTherapist", fields: [therapistId], references: [id])
+  sessions          TherapySession[]
+  documents         ClinicalDocument[]
+  treatmentPlans    TreatmentPlan[]
+  careTeamMembers   CareTeamMember[]
+  riskAssessments   RiskAssessment[]
+  
+  @@index([teamId])
+  @@index([therapistId])
+  @@index([status])
+  @@index([lastName, firstName])
+}
+
+model TherapySession {
+  id                String         @id @default(uuid())
+  patientId         String
+  therapistId       String
+  teamId            String
+  scheduledAt       DateTime
+  startedAt         DateTime?
+  endedAt           DateTime?
+  duration          Int?           // Duration in minutes
+  status            SessionStatus  @default(SCHEDULED)
+  modality          TherapyModality @default(CBT)
+  isRemote          Boolean        @default(false)
+  location          String?
+  presentingIssues  String[]
+  interventions     String[]
+  homework          String?        @db.Text
+  privateNotes      String?        @db.Text // Therapist's private notes
+  supervisorNotes   String?        @db.Text
+  billingCode       String?
+  billingUnits      Int?
+  isCrisis          Boolean        @default(false)
+  riskFlags         String[]       // Any risk indicators noted
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapist         User           @relation("SessionTherapist", fields: [therapistId], references: [id])
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  transcript        SessionTranscript?
+  documents         ClinicalDocument[]
+  audioRecording    AudioRecording?
+  clinicalFlags     ClinicalFlag[]
+  batchJobs         BatchProcessingJob[]
+  
+  @@index([patientId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model SessionTranscript {
+  id                String         @id @default(uuid())
+  sessionId         String         @unique
+  content           Json           // Structured transcript with timestamps and speakers
+  rawText           String         @db.Text
+  medicalTerms      String[]       // Identified medical terminology
+  keyTopics         String[]       // AI-extracted key topics
+  sentiment         Json?          // Sentiment analysis results
+  summary           String?        @db.Text
+  processingStatus  String         @default("pending") // pending, processing, completed, failed
+  processedAt       DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  session           TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  clinicalFlags     ClinicalFlag[]
+  
+  @@index([sessionId])
+  @@index([processingStatus])
+}
+
+model AudioRecording {
+  id                String         @id @default(uuid())
+  sessionId         String         @unique
+  fileUrl           String         // Secure S3 URL
+  fileSize          BigInt         // Size in bytes
+  duration          Int            // Duration in seconds
+  mimeType          String
+  transcriptionJobId String?       // Deepgram job ID
+  metadata          Json?          // Audio quality metrics, etc.
+  createdAt         DateTime       @default(now())
+  
+  session           TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@index([sessionId])
+}
+
+model ClinicalFlag {
+  id                String         @id @default(uuid())
+  sessionId         String
+  transcriptId      String?
+  type              String         // suicide_risk, self_harm, etc.
+  severity          String         // low, medium, high, critical
+  confidence        Float
+  text              String         @db.Text
+  context           String         @db.Text
+  timestamp         Int            // Milliseconds from session start
+  speakerId         String?
+  metadata          Json?
+  acknowledged      Boolean        @default(false)
+  acknowledgedBy    String?
+  acknowledgedAt    DateTime?
+  notes             String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  session           TherapySession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  transcript        SessionTranscript? @relation(fields: [transcriptId], references: [id], onDelete: SetNull)
+  
+  @@index([sessionId])
+  @@index([transcriptId])
+  @@index([type])
+  @@index([severity])
+  @@index([acknowledged])
+}
+
+model BatchProcessingJob {
+  id                String         @id @default(uuid())
+  sessionId         String
+  teamId            String
+  type              String         // transcript_processing, document_generation
+  status            String         @default("pending") // pending, processing, completed, failed
+  priority          Int            @default(0)
+  attempts          Int            @default(0)
+  maxAttempts       Int            @default(3)
+  input             Json           // Job input data
+  result            Json?          // Job result data
+  error             String?        @db.Text
+  createdAt         DateTime       @default(now())
+  startedAt         DateTime?
+  completedAt       DateTime?
+  
+  session           TherapySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  @@index([sessionId])
+  @@index([teamId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model ClinicalDocument {
+  id                String         @id @default(uuid())
+  patientId         String
+  sessionId         String?
+  therapistId       String
+  teamId            String
+  type              DocumentType
+  title             String
+  content           Json           // Structured document content
+  templateId        String?
+  isDraft           Boolean        @default(true)
+  isLocked          Boolean        @default(false) // Finalized documents
+  signedBy          String?
+  signedAt          DateTime?
+  reviewedBy        String?
+  reviewedAt        DateTime?
+  version           Int            @default(1)
+  previousVersionId String?
+  metadata          Json?          // Additional document-specific data
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  session           TherapySession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  therapist         User           @relation("DocumentAuthor", fields: [therapistId], references: [id])
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  template          DocumentTemplate? @relation(fields: [templateId], references: [id])
+  
+  @@index([patientId])
+  @@index([sessionId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([type])
+  @@index([isDraft])
+}
+
+model DocumentTemplate {
+  id                String         @id @default(uuid())
+  teamId            String
+  name              String
+  type              DocumentType
+  modality          TherapyModality?
+  structure         Json           // Template structure and fields
+  isActive          Boolean        @default(true)
+  isDefault         Boolean        @default(false)
+  createdBy         String
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  creator           User           @relation("TemplateCreator", fields: [createdBy], references: [id])
+  documents         ClinicalDocument[]
+  
+  @@unique([teamId, name])
+  @@index([teamId])
+  @@index([type])
+}
+
+model TreatmentPlan {
+  id                String         @id @default(uuid())
+  patientId         String
+  therapistId       String
+  teamId            String
+  title             String
+  startDate         DateTime
+  endDate           DateTime?
+  goals             Json[]         // Array of treatment goals with progress tracking
+  objectives        Json[]         // Measurable objectives
+  interventions     Json[]         // Planned interventions
+  frequency         String         // Session frequency (e.g., "Weekly", "Bi-weekly")
+  modalities        TherapyModality[]
+  status            String         @default("active") // active, completed, discontinued
+  reviewDate        DateTime?
+  outcomes          Json?          // Treatment outcomes
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  therapist         User           @relation("PlanAuthor", fields: [therapistId], references: [id])
+  team              Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  
+  @@index([patientId])
+  @@index([therapistId])
+  @@index([teamId])
+  @@index([status])
+}
+
+model CareTeamMember {
+  id                String         @id @default(uuid())
+  patientId         String
+  userId            String
+  role              String         // Psychiatrist, Social Worker, etc.
+  isPrimary         Boolean        @default(false)
+  permissions       String[]       // Specific permissions for this patient
+  startDate         DateTime       @default(now())
+  endDate           DateTime?
+  notes             String?        @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  user              User           @relation("CareTeamMembership", fields: [userId], references: [id])
+  
+  @@unique([patientId, userId])
+  @@index([patientId])
+  @@index([userId])
+}
+
+model RiskAssessment {
+  id                String         @id @default(uuid())
+  patientId         String
+  assessedBy        String
+  assessmentDate    DateTime       @default(now())
+  riskLevel         RiskLevel
+  suicidalIdeation  Boolean        @default(false)
+  homicidalIdeation Boolean        @default(false)
+  selfHarmRisk      Boolean        @default(false)
+  substanceUseRisk  Boolean        @default(false)
+  factors           String[]       // Risk factors identified
+  protectiveFactors String[]       // Protective factors
+  interventions     String[]       // Recommended interventions
+  followUpDate      DateTime?
+  notes             String         @db.Text
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  
+  patient           Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  assessor          User           @relation("RiskAssessor", fields: [assessedBy], references: [id])
+  
+  @@index([patientId])
+  @@index([assessedBy])
+  @@index([riskLevel])
+  @@index([assessmentDate])
 }
