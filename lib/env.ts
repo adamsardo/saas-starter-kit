@@ -131,6 +131,32 @@ const env = {
     secretKey: process.env.STRIPE_SECRET_KEY,
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET,
   },
+
+  // AI SDK configuration
+  ai: {
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY,
+      organization: process.env.OPENAI_ORGANIZATION,
+    },
+    anthropic: {
+      apiKey: process.env.ANTHROPIC_API_KEY,
+    },
+    // Optional: Add more providers as needed
+    google: {
+      apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    },
+    mistral: {
+      apiKey: process.env.MISTRAL_API_KEY,
+    },
+    // Feature flags for AI features
+    enabled: process.env.FEATURE_AI_ENABLED !== 'false',
+    defaultModel: process.env.AI_DEFAULT_MODEL || 'gpt-4o-mini',
+    maxTokens: Number(process.env.AI_MAX_TOKENS) || 2048,
+    temperature: Number(process.env.AI_TEMPERATURE) || 0.7,
+    // Rate limiting for AI features
+    rateLimitPerUser: Number(process.env.AI_RATE_LIMIT_PER_USER) || 100,
+    rateLimitWindow: Number(process.env.AI_RATE_LIMIT_WINDOW) || 3600, // 1 hour in seconds
+  },
 };
 
 export default env;

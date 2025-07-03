@@ -20,6 +20,9 @@
     "paths": {
       "@/lib/*": ["lib/*"],
       "@/components/*": ["components/*"],
+      "@/hooks/*": ["hooks/*"],
+      "@/models/*": ["models/*"],
+      "@/types/*": ["types/*"]
     },
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "next-auth.d.ts"],
