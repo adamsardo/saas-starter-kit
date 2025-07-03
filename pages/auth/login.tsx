@@ -1,229 +1,65 @@
-import type {
-  GetServerSidePropsContext,
-  InferGetServerSidePropsType,
-} from 'next';
-
-import * as Yup from 'yup';
-import Link from 'next/link';
-import { useFormik } from 'formik';
-import { Button } from 'react-daisyui';
-import { useRouter } from 'next/router';
-import { useTranslation } from 'next-i18next';
-import React, { type ReactElement, useEffect, useState, useRef } from 'react';
-import type { ComponentStatus } from 'react-daisyui/dist/types';
-import { getCsrfToken, signIn, useSession } from 'next-auth/react';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-
-import env from '@/lib/env';
-import type { NextPageWithLayout } from 'types';
+import { SignIn } from '@clerk/nextjs';
 import { AuthLayout } from '@/components/layouts';
-import GithubButton from '@/components/auth/GithubButton';
-import GoogleButton from '@/components/auth/GoogleButton';
-import { Alert, InputWithLabel, Loading } from '@/components/shared';
-import { authProviderEnabled } from '@/lib/auth';
-import Head from 'next/head';
-import TogglePasswordVisibility from '@/components/shared/TogglePasswordVisibility';
-import AgreeMessage from '@/components/auth/AgreeMessage';
-import GoogleReCAPTCHA from '@/components/shared/GoogleReCAPTCHA';
-import ReCAPTCHA from 'react-google-recaptcha';
-import { maxLengthPolicies } from '@/lib/common';
+import type { GetServerSidePropsContext } from 'next';
+import { buildClerkProps, getAuth } from '@clerk/nextjs/server';
+import env from '@/lib/env';
+import { dark } from '@clerk/themes';
+import useTheme from 'hooks/useTheme';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import type { ReactElement } from 'react';
+import type { NextPageWithLayout } from 'types';
 
-interface Message {
-  text: string | null;
-  status: ComponentStatus | null;
-}
-
-const Login: NextPageWithLayout<
-  InferGetServerSidePropsType<typeof getServerSideProps>
-> = ({ csrfToken, authProviders, recaptchaSiteKey }) => {
-  const router = useRouter();
-  const { status } = useSession();
-  const { t } = useTranslation('common');
-  const [recaptchaToken, setRecaptchaToken] = useState<string>('');
-  const [message, setMessage] = useState<Message>({ text: null, status: null });
-  const [isPasswordVisible, setIsPasswordVisible] = useState<boolean>(false);
-  const recaptchaRef = useRef<ReCAPTCHA>(null);
-
-  const { error, success, token } = router.query as {
-    error: string;
-    success: string;
-    token: string;
-  };
-
-  const handlePasswordVisibility = () => {
-    setIsPasswordVisible((prev) => !prev);
-  };
-
-  useEffect(() => {
-    if (error) {
-      setMessage({ text: error, status: 'error' });
-    }
-
-    if (success) {
-      setMessage({ text: success, status: 'success' });
-    }
-  }, [error, success]);
-
-  const redirectUrl = token
-    ? `/invitations/${token}`
-    : env.redirectIfAuthenticated;
-
-  const formik = useFormik({
-    initialValues: {
-      email: '',
-      password: '',
-    },
-    validationSchema: Yup.object().shape({
-      email: Yup.string().required().email().max(maxLengthPolicies.email),
-      password: Yup.string().required().max(maxLengthPolicies.password),
-    }),
-    onSubmit: async (values) => {
-      const { email, password } = values;
-
-      setMessage({ text: null, status: null });
-
-      const response = await signIn('credentials', {
-        email,
-        password,
-        csrfToken,
-        redirect: false,
-        callbackUrl: redirectUrl,
-        recaptchaToken,
-      });
-
-      formik.resetForm();
-      recaptchaRef.current?.reset();
-
-      if (response && !response.ok) {
-        setMessage({ text: response.error, status: 'error' });
-        return;
-      }
-    },
-  });
-
-  if (status === 'loading') {
-    return <Loading />;
-  }
-
-  if (status === 'authenticated') {
-    router.push(redirectUrl);
-  }
-
-  const params = token ? `?token=${token}` : '';
+const Login: NextPageWithLayout = () => {
+  const { theme } = useTheme();
 
   return (
-    <>
-      <Head>
-        <title>{t('login-title')}</title>
-      </Head>
-      {message.text && message.status && (
-        <Alert status={message.status} className="mb-5">
-          {t(message.text)}
-        </Alert>
-      )}
-      <div className="rounded p-6 border">
-        <div className="flex gap-2 flex-wrap">
-          {authProviders.github && <GithubButton />}
-          {authProviders.google && <GoogleButton />}
-        </div>
-
-        {(authProviders.github || authProviders.google) &&
-          authProviders.credentials && <div className="divider">{t('or')}</div>}
-
-        {authProviders.credentials && (
-          <form onSubmit={formik.handleSubmit}>
-            <div className="space-y-3">
-              <InputWithLabel
-                type="email"
-                label="Email"
-                name="email"
-                placeholder={t('email')}
-                value={formik.values.email}
-                error={formik.touched.email ? formik.errors.email : undefined}
-                onChange={formik.handleChange}
-              />
-              <div className="relative flex">
-                <InputWithLabel
-                  type={isPasswordVisible ? 'text' : 'password'}
-                  name="password"
-                  placeholder={t('password')}
-                  value={formik.values.password}
-                  label={
-                    <label className="label">
-                      <span className="label-text">{t('password')}</span>
-                      <span className="label-text-alt">
-                        <Link
-                          href="/auth/forgot-password"
-                          className="text-sm text-primary hover:text-[color-mix(in_oklab,oklch(var(--p)),black_7%)]"
-                        >
-                          {t('forgot-password')}
-                        </Link>
-                      </span>
-                    </label>
-                  }
-                  error={
-                    formik.touched.password ? formik.errors.password : undefined
-                  }
-                  onChange={formik.handleChange}
-                />
-                <TogglePasswordVisibility
-                  isPasswordVisible={isPasswordVisible}
-                  handlePasswordVisibility={handlePasswordVisibility}
-                />
-              </div>
-              <GoogleReCAPTCHA
-                recaptchaRef={recaptchaRef}
-                onChange={setRecaptchaToken}
-                siteKey={recaptchaSiteKey}
-              />
-            </div>
-            <div className="mt-3 space-y-3">
-              <Button
-                type="submit"
-                color="primary"
-                loading={formik.isSubmitting}
-                active={formik.dirty}
-                fullWidth
-                size="md"
-              >
-                {t('sign-in')}
-              </Button>
-              <AgreeMessage text={t('sign-in')} />
-            </div>
-          </form>
-        )}
-
-        {(authProviders.email || authProviders.saml) && (
-          <div className="divider"></div>
-        )}
-
-        <div className="space-y-3">
-          {authProviders.email && (
-            <Link
-              href={`/auth/magic-link${params}`}
-              className="btn btn-outline w-full"
-            >
-              &nbsp;{t('sign-in-with-email')}
-            </Link>
-          )}
-
-          {authProviders.saml && (
-            <Link href="/auth/sso" className="btn btn-outline w-full">
-              &nbsp;{t('continue-with-saml-sso')}
-            </Link>
-          )}
-        </div>
-      </div>
-      <p className="text-center text-sm text-gray-600 mt-3">
-        {t('dont-have-an-account')}
-        <Link
-          href={`/auth/join${params}`}
-          className="font-medium text-primary hover:text-[color-mix(in_oklab,oklch(var(--p)),black_7%)]"
-        >
-          &nbsp;{t('create-a-free-account')}
-        </Link>
-      </p>
-    </>
+    <div className="flex min-h-screen items-center justify-center">
+      <SignIn
+        appearance={{
+          baseTheme: theme === 'dark' ? dark : undefined,
+          elements: {
+            rootBox: 'mx-auto',
+            card: 'shadow-xl',
+            headerTitle: 'text-2xl font-bold',
+            headerSubtitle: 'text-gray-600 dark:text-gray-400',
+            socialButtonsBlockButton: 
+              'border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800',
+            socialButtonsBlockButtonText: 'font-medium',
+            dividerLine: 'bg-gray-300 dark:bg-gray-600',
+            dividerText: 'text-gray-500 dark:text-gray-400',
+            formFieldLabel: 'text-gray-700 dark:text-gray-300',
+            formFieldInput: 
+              'border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white',
+            formButtonPrimary: 
+              'bg-blue-600 hover:bg-blue-700 text-white',
+            footerActionLink: 
+              'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300',
+            identityPreviewText: 'text-gray-700 dark:text-gray-300',
+            identityPreviewEditButtonIcon: 'text-gray-500 dark:text-gray-400',
+            formFieldInputShowPasswordButton: 'text-gray-500 dark:text-gray-400',
+            formFieldInputShowPasswordIcon: 'text-gray-500 dark:text-gray-400',
+          },
+          layout: {
+            socialButtonsPlacement: 'top',
+            socialButtonsVariant: 'blockButton',
+            showOptionalFields: false,
+          },
+          variables: {
+            colorPrimary: '#3B82F6',
+            colorDanger: '#EF4444',
+            colorSuccess: '#10B981',
+            colorWarning: '#F59E0B',
+            colorTextOnPrimaryBackground: '#FFFFFF',
+            colorBackground: theme === 'dark' ? '#1F2937' : '#FFFFFF',
+            colorInputBackground: theme === 'dark' ? '#1F2937' : '#FFFFFF',
+            colorInputText: theme === 'dark' ? '#FFFFFF' : '#000000',
+            borderRadius: '0.375rem',
+          },
+        }}
+        redirectUrl={env.clerk.afterSignInUrl}
+        signUpUrl={env.clerk.signUpUrl}
+      />
+    </div>
   );
 };
 
@@ -235,19 +71,27 @@ Login.getLayout = function getLayout(page: ReactElement) {
   );
 };
 
-export const getServerSideProps = async (
-  context: GetServerSidePropsContext
-) => {
+// Handle server-side authentication check
+export async function getServerSideProps(context: GetServerSidePropsContext) {
   const { locale } = context;
+  const { userId } = getAuth(context.req);
+
+  // If user is already signed in, redirect to dashboard
+  if (userId) {
+    return {
+      redirect: {
+        destination: env.clerk.afterSignInUrl,
+        permanent: false,
+      },
+    };
+  }
 
   return {
     props: {
       ...(locale ? await serverSideTranslations(locale, ['common']) : {}),
-      csrfToken: await getCsrfToken(context),
-      authProviders: authProviderEnabled(),
-      recaptchaSiteKey: env.recaptcha.siteKey,
+      ...buildClerkProps(context.req),
     },
   };
-};
+}
 
 export default Login;

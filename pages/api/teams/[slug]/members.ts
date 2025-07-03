@@ -17,15 +17,20 @@ import {
   updateMemberSchema,
   validateWithSchema,
 } from '@/lib/zod';
+import { getTeam } from 'models/team';
+import {
+  getCurrentUserWithTeam,
+} from '@/lib/clerk-session';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const { method } = req;
-
   try {
-    switch (method) {
+    // Check team access using Clerk
+    await throwIfNoTeamAccess(req, res);
+
+    switch (req.method) {
       case 'GET':
         await handleGET(req, res);
         break;
@@ -41,7 +46,7 @@ export default async function handler(
       default:
         res.setHeader('Allow', 'GET, DELETE, PUT, PATCH');
         res.status(405).json({
-          error: { message: `Method ${method} Not Allowed` },
+          error: { message: `Method ${req.method} Not Allowed` },
         });
     }
   } catch (error: any) {
@@ -54,42 +59,45 @@ export default async function handler(
 
 // Get members of a team
 const handleGET = async (req: NextApiRequest, res: NextApiResponse) => {
-  const teamMember = await throwIfNoTeamAccess(req, res);
-  throwIfNotAllowed(teamMember, 'team_member', 'read');
+  const user = await getCurrentUserWithTeam(req, res);
 
-  const members = await getTeamMembers(teamMember.team.slug);
+  throwIfNotAllowed(user, 'team_member', 'read');
+
+  const members = await getTeamMembers(user.team.id);
 
   recordMetric('member.fetched');
 
   res.status(200).json({ data: members });
 };
 
-// Delete the member from the team
+// Delete a member from a team
 const handleDELETE = async (req: NextApiRequest, res: NextApiResponse) => {
-  const teamMember = await throwIfNoTeamAccess(req, res);
-  throwIfNotAllowed(teamMember, 'team_member', 'delete');
+  const user = await getCurrentUserWithTeam(req, res);
 
-  const { memberId } = validateWithSchema(
-    deleteMemberSchema,
-    req.query as { memberId: string }
-  );
+  throwIfNotAllowed(user, 'team_member', 'delete');
 
-  await validateMembershipOperation(memberId, teamMember);
+  const { memberId } = validateWithSchema(deleteMemberSchema, req.body);
 
-  const teamMemberRemoved = await removeTeamMember(teamMember.teamId, memberId);
+  // Cannot remove self
+  if (user.id === memberId) {
+    throw new ApiError(400, 'You cannot remove yourself from the team.');
+  }
 
-  await sendEvent(teamMember.teamId, 'member.removed', teamMemberRemoved);
+  await removeTeamMember(user.team.id, memberId);
+
+  // Get full team object for audit
+  const fullTeam = await getTeam({ id: user.team.id });
 
   sendAudit({
     action: 'member.remove',
     crud: 'd',
-    user: teamMember.user,
-    team: teamMember.team,
+    user,
+    team: fullTeam,
   });
 
   recordMetric('member.removed');
 
-  res.status(200).json({ data: {} });
+  res.status(204).end();
 };
 
 // Leave a team

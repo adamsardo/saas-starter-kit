@@ -62,11 +62,15 @@ model User {
   updatedAt              DateTime  @default(now())
   invalid_login_attempts Int       @default(0)
   lockedAt               DateTime?
+  clerkUserId            String?   @unique
+  migratedToClerk        Boolean   @default(false)
 
   teamMembers TeamMember[]
   accounts    Account[]
   sessions    Session[]
   invitations Invitation[]
+
+  @@index([clerkUserId])
 }
 
 model Team {
@@ -79,11 +83,14 @@ model Team {
   billingProvider String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @default(now())
+  clerkOrgId      String?      @unique
+  migratedToClerk Boolean      @default(false)
   members         TeamMember[]
   invitations     Invitation[]
   apiKeys         ApiKey[]
 
   @@index([billingId])
+  @@index([clerkOrgId])
 }
 
 model TeamMember {

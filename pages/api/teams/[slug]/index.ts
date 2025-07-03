@@ -1,24 +1,27 @@
 import { sendAudit } from '@/lib/retraced';
 import {
   deleteTeam,
-  getCurrentUserWithTeam,
   getTeam,
-  throwIfNoTeamAccess,
   updateTeam,
 } from 'models/team';
-import { throwIfNotAllowed } from 'models/user';
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { recordMetric } from '@/lib/metrics';
 import { ApiError } from '@/lib/errors';
 import env from '@/lib/env';
 import { updateTeamSchema, validateWithSchema } from '@/lib/zod';
 import { Prisma, Team } from '@prisma/client';
+import { 
+  getCurrentUserWithTeam, 
+  throwIfNoTeamAccess, 
+  throwIfNotAllowed 
+} from '@/lib/clerk-session';
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
+    // Check team access using Clerk
     await throwIfNoTeamAccess(req, res);
 
     switch (req.method) {
@@ -47,8 +50,10 @@ export default async function handler(
 
 // Get a team by slug
 const handleGET = async (req: NextApiRequest, res: NextApiResponse) => {
+  // Get current user with team using Clerk
   const user = await getCurrentUserWithTeam(req, res);
 
+  // Check permissions
   throwIfNotAllowed(user, 'team', 'read');
 
   const team = await getTeam({ id: user.team.id });
@@ -97,11 +102,14 @@ const handlePUT = async (req: NextApiRequest, res: NextApiResponse) => {
     throw error;
   }
 
+  // Get full team object for audit
+  const fullTeam = await getTeam({ id: user.team.id });
+
   sendAudit({
     action: 'team.update',
     crud: 'u',
     user,
-    team: user.team,
+    team: fullTeam,
   });
 
   recordMetric('team.updated');
@@ -119,13 +127,16 @@ const handleDELETE = async (req: NextApiRequest, res: NextApiResponse) => {
 
   throwIfNotAllowed(user, 'team', 'delete');
 
+  // Get full team object for audit before deletion
+  const fullTeam = await getTeam({ id: user.team.id });
+
   await deleteTeam({ id: user.team.id });
 
   sendAudit({
     action: 'team.delete',
     crud: 'd',
     user,
-    team: user.team,
+    team: fullTeam,
   });
 
   recordMetric('team.removed');

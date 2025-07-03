@@ -1,110 +1,97 @@
-import Link from 'next/link';
-import toast from 'react-hot-toast';
-import { useRouter } from 'next/router';
-import { useSession } from 'next-auth/react';
-import { useTranslation } from 'next-i18next';
-import { GetServerSidePropsContext, InferGetServerSidePropsType } from 'next';
-import { type ReactElement, useEffect } from 'react';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
-
-import type { NextPageWithLayout } from 'types';
-import { authProviderEnabled } from '@/lib/auth';
+import { SignUp } from '@clerk/nextjs';
 import { AuthLayout } from '@/components/layouts';
-import GithubButton from '@/components/auth/GithubButton';
-import GoogleButton from '@/components/auth/GoogleButton';
-import { JoinWithInvitation, Join } from '@/components/auth';
-import Head from 'next/head';
-import { Loading } from '@/components/shared';
+import type { GetServerSidePropsContext } from 'next';
+import { buildClerkProps, getAuth } from '@clerk/nextjs/server';
 import env from '@/lib/env';
+import { dark } from '@clerk/themes';
+import useTheme from 'hooks/useTheme';
+import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import type { ReactElement } from 'react';
+import type { NextPageWithLayout } from 'types';
 
-const Signup: NextPageWithLayout<
-  InferGetServerSidePropsType<typeof getServerSideProps>
-> = ({ authProviders, recaptchaSiteKey }) => {
-  const router = useRouter();
-  const { status } = useSession();
-  const { t } = useTranslation('common');
-
-  const { error, token } = router.query as {
-    error: string;
-    token: string;
-  };
-
-  useEffect(() => {
-    if (error) {
-      toast.error(t(error));
-    }
-  }, [error, t]);
-
-  if (status === 'loading') {
-    return <Loading />;
-  }
-
-  if (status === 'authenticated') {
-    router.push(env.redirectIfAuthenticated);
-  }
-
-  const params = token ? `?token=${token}` : '';
+const Join: NextPageWithLayout = () => {
+  const { theme } = useTheme();
 
   return (
-    <>
-      <Head>
-        <title>{t('sign-up-title')}</title>
-      </Head>
-      <div className="rounded p-6 border">
-        <div className="flex gap-2 flex-wrap">
-          {authProviders.github && <GithubButton />}
-          {authProviders.google && <GoogleButton />}
-        </div>
-
-        {(authProviders.github || authProviders.google) &&
-          authProviders.credentials && <div className="divider">{t('or')}</div>}
-
-        {authProviders.credentials && (
-          <>
-            {token ? (
-              <JoinWithInvitation
-                inviteToken={token}
-                recaptchaSiteKey={recaptchaSiteKey}
-              />
-            ) : (
-              <Join recaptchaSiteKey={recaptchaSiteKey} />
-            )}
-          </>
-        )}
-      </div>
-      <p className="text-center text-sm text-gray-600 mt-3">
-        {t('already-have-an-account')}
-        <Link
-          href={`/auth/login/${params}`}
-          className="font-medium text-primary hover:text-[color-mix(in_oklab,oklch(var(--p)),black_7%)]"
-        >
-          &nbsp;{t('sign-in')}
-        </Link>
-      </p>
-    </>
+    <div className="flex min-h-screen items-center justify-center">
+      <SignUp
+        appearance={{
+          baseTheme: theme === 'dark' ? dark : undefined,
+          elements: {
+            rootBox: 'mx-auto',
+            card: 'shadow-xl',
+            headerTitle: 'text-2xl font-bold',
+            headerSubtitle: 'text-gray-600 dark:text-gray-400',
+            socialButtonsBlockButton: 
+              'border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800',
+            socialButtonsBlockButtonText: 'font-medium',
+            dividerLine: 'bg-gray-300 dark:bg-gray-600',
+            dividerText: 'text-gray-500 dark:text-gray-400',
+            formFieldLabel: 'text-gray-700 dark:text-gray-300',
+            formFieldInput: 
+              'border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white',
+            formButtonPrimary: 
+              'bg-blue-600 hover:bg-blue-700 text-white',
+            footerActionLink: 
+              'text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300',
+            identityPreviewText: 'text-gray-700 dark:text-gray-300',
+            identityPreviewEditButtonIcon: 'text-gray-500 dark:text-gray-400',
+            formFieldInputShowPasswordButton: 'text-gray-500 dark:text-gray-400',
+            formFieldInputShowPasswordIcon: 'text-gray-500 dark:text-gray-400',
+          },
+          layout: {
+            socialButtonsPlacement: 'top',
+            socialButtonsVariant: 'blockButton',
+          },
+          variables: {
+            colorPrimary: '#3B82F6',
+            colorDanger: '#EF4444',
+            colorSuccess: '#10B981',
+            colorWarning: '#F59E0B',
+            colorTextOnPrimaryBackground: '#FFFFFF',
+            colorBackground: theme === 'dark' ? '#1F2937' : '#FFFFFF',
+            colorInputBackground: theme === 'dark' ? '#1F2937' : '#FFFFFF',
+            colorInputText: theme === 'dark' ? '#FFFFFF' : '#000000',
+            borderRadius: '0.375rem',
+          },
+        }}
+        redirectUrl={env.clerk.afterSignUpUrl}
+        signInUrl={env.clerk.signInUrl}
+        afterSignUpUrl={env.clerk.afterSignUpUrl}
+      />
+    </div>
   );
 };
 
-Signup.getLayout = function getLayout(page: ReactElement) {
+Join.getLayout = function getLayout(page: ReactElement) {
   return (
-    <AuthLayout heading="get-started" description="create-a-new-account">
+    <AuthLayout heading="create-account" description="sign-up-for-free">
       {page}
     </AuthLayout>
   );
 };
 
-export const getServerSideProps = async (
-  context: GetServerSidePropsContext
-) => {
+// Handle server-side authentication check
+export async function getServerSideProps(context: GetServerSidePropsContext) {
   const { locale } = context;
+  const { userId } = getAuth(context.req);
+
+  // If user is already signed in, redirect to dashboard
+  if (userId) {
+    return {
+      redirect: {
+        destination: env.clerk.afterSignUpUrl,
+        permanent: false,
+      },
+    };
+  }
 
   return {
     props: {
       ...(locale ? await serverSideTranslations(locale, ['common']) : {}),
-      authProviders: authProviderEnabled(),
-      recaptchaSiteKey: env.recaptcha.siteKey,
+      ...buildClerkProps(context.req),
     },
   };
-};
+}
 
-export default Signup;
+export default Join;

@@ -1,9 +1,5 @@
-import micromatch from 'micromatch';
-import { getToken } from 'next-auth/jwt';
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-
-import env from './lib/env';
 
 // Constants for security headers
 const SECURITY_HEADERS = {
@@ -24,6 +20,7 @@ const generateCSP = (): string => {
       '*.boxyhq.com',
       '*.dicebear.com',
       'data:',
+      'img.clerk.com',
     ],
     'script-src': [
       "'self'",
@@ -31,6 +28,8 @@ const generateCSP = (): string => {
       "'unsafe-eval'",
       '*.gstatic.com',
       '*.google.com',
+      'clerk.*.lcl.dev',
+      '*.clerk.accounts.dev',
     ],
     'style-src': ["'self'", "'unsafe-inline'"],
     'connect-src': [
@@ -40,9 +39,11 @@ const generateCSP = (): string => {
       'boxyhq.com',
       '*.ingest.sentry.io',
       '*.mixpanel.com',
+      'clerk.*.lcl.dev',
+      '*.clerk.accounts.dev',
     ],
-    'frame-src': ["'self'", '*.google.com', '*.gstatic.com'],
-    'font-src': ["'self'"],
+    'frame-src': ["'self'", '*.google.com', '*.gstatic.com', 'clerk.*.lcl.dev', '*.clerk.accounts.dev'],
+    'font-src': ["'self'", 'fonts.clerk.accounts.dev'],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'form-action': ["'self'"],
@@ -55,74 +56,49 @@ const generateCSP = (): string => {
     .join('; ');
 };
 
-// Add routes that don't require authentication
-const unAuthenticatedRoutes = [
+// Define public routes that don't require authentication
+const isPublicRoute = createRouteMatcher([
   '/api/hello',
   '/api/health',
-  '/api/auth/**',
-  '/api/oauth/**',
-  '/api/scim/v2.0/**',
-  '/api/invitations/*',
   '/api/webhooks/stripe',
   '/api/webhooks/dsync',
-  '/auth/**',
-  '/invitations/*',
+  '/api/webhooks/clerk',
+  '/api/invitations/(.*)',
+  '/auth/(.*)',
+  '/invitations/(.*)',
   '/terms-condition',
   '/unlock-account',
-  '/login/saml',
-  '/.well-known/*',
-];
+  '/.well-known/(.*)',
+  '/',
+  '/sign-in(.*)',
+  '/sign-up(.*)',
+]);
 
-export default async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+// Routes that require authentication
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/settings(.*)',
+  '/teams(.*)',
+  '/api/teams(.*)',
+  '/api/users(.*)',
+  '/api/sessions(.*)',
+]);
 
-  // Bypass routes that don't require authentication
-  if (micromatch.isMatch(pathname, unAuthenticatedRoutes)) {
-    return NextResponse.next();
+export default clerkMiddleware((auth, req) => {
+  // Protect routes that require authentication
+  if (isProtectedRoute(req) && !isPublicRoute(req)) {
+    auth.protect();
   }
 
-  const redirectUrl = new URL('/auth/login', req.url);
-  redirectUrl.searchParams.set('callbackUrl', encodeURI(req.url));
-
-  // JWT strategy
-  if (env.nextAuth.sessionStrategy === 'jwt') {
-    const token = await getToken({
-      req,
-    });
-
-    if (!token) {
-      return NextResponse.redirect(redirectUrl);
-    }
-  }
-
-  // Database strategy
-  else if (env.nextAuth.sessionStrategy === 'database') {
-    const url = new URL('/api/auth/session', req.url);
-
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        cookie: req.headers.get('cookie') || '',
-      },
-    });
-
-    const session = await response.json();
-
-    if (!session.user) {
-      return NextResponse.redirect(redirectUrl);
-    }
-  }
-
+  // Add security headers
   const requestHeaders = new Headers(req.headers);
   const csp = generateCSP();
-
-  requestHeaders.set('Content-Security-Policy', csp);
-
+  
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
 
-  if (env.securityHeadersEnabled) {
+  if (process.env.SECURITY_HEADERS_ENABLED === 'true') {
     // Set security headers
     response.headers.set('Content-Security-Policy', csp);
     Object.entries(SECURITY_HEADERS).forEach(([key, value]) => {
@@ -130,9 +106,8 @@ export default async function middleware(req: NextRequest) {
     });
   }
 
-  // All good, let the request through
   return response;
-}
+});
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|api/auth/session).*)'],

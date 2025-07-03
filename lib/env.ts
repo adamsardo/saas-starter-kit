@@ -15,11 +15,22 @@ const env = {
     from: process.env.SMTP_FROM,
   },
 
-  // NextAuth configuration
+  // NextAuth configuration (to be removed after migration)
   nextAuth: {
     secret: process.env.NEXTAUTH_SECRET,
     sessionStrategy: (process.env.NEXTAUTH_SESSION_STRATEGY ||
       'jwt') as SessionStrategy,
+  },
+
+  // Clerk configuration
+  clerk: {
+    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '',
+    secretKey: process.env.CLERK_SECRET_KEY || '',
+    signInUrl: process.env.NEXT_PUBLIC_CLERK_SIGN_IN_URL || '/auth/login',
+    signUpUrl: process.env.NEXT_PUBLIC_CLERK_SIGN_UP_URL || '/auth/join',
+    afterSignInUrl: process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL || '/dashboard',
+    afterSignUpUrl: process.env.NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL || '/dashboard',
+    webhookSecret: process.env.CLERK_WEBHOOK_SECRET || '',
   },
 
   // Svix
