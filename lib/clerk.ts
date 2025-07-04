@@ -1,16 +1,9 @@
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { Role } from '@prisma/client';
+import { CLERK_ROLES } from './clerk-constants';
 
-// Map Clerk roles to our existing Role enum
-export const CLERK_ROLE_METADATA_KEY = 'role';
-export const CLERK_TEAM_ID_METADATA_KEY = 'teamId';
-
-// Clerk organization role mapping
-export const CLERK_ROLES = {
-  'org:admin': Role.ADMIN,
-  'org:member': Role.MEMBER,
-  'org:owner': Role.OWNER,
-} as const;
+// Re-export constants from clerk-constants.ts
+export { CLERK_ROLE_METADATA_KEY, CLERK_TEAM_ID_METADATA_KEY, CLERK_ROLES } from './clerk-constants';
 
 // Helper to get current user with team context
 export async function getCurrentUserWithTeam() {
@@ -78,10 +71,4 @@ export async function requireAuth() {
   }
 
   return { userId, orgId };
-}
-
-// Helper to check if authentication provider is enabled
-export function isAuthProviderEnabled(provider: string): boolean {
-  const enabledProviders = process.env.CLERK_ENABLED_AUTH_PROVIDERS || 'email,oauth';
-  return enabledProviders.split(',').includes(provider);
 }

@@ -3,33 +3,31 @@ import type {
   InferGetServerSidePropsType,
 } from 'next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
+import { useTranslation } from 'next-i18next';
 
-import env from '@/lib/env';
 import { UpdatePassword } from '@/components/account';
 import ManageSessions from '@/components/account/ManageSessions';
+import { getSession } from '@/lib/session';
 
-type SecurityProps = InferGetServerSidePropsType<typeof getServerSideProps>;
+const Security = () => {
+  const { t } = useTranslation('common');
 
-const Security = ({ sessionStrategy }: SecurityProps) => {
   return (
     <div className="flex gap-10 flex-col">
       <UpdatePassword />
-      {sessionStrategy === 'database' && <ManageSessions />}
+      <ManageSessions />
     </div>
   );
 };
 
-export const getServerSideProps = async ({
+export async function getServerSideProps({
   locale,
-}: GetServerSidePropsContext) => {
-  const { sessionStrategy } = env.nextAuth;
-
+}: GetServerSidePropsContext) {
   return {
     props: {
       ...(locale ? await serverSideTranslations(locale, ['common']) : {}),
-      sessionStrategy,
     },
   };
-};
+}
 
 export default Security;

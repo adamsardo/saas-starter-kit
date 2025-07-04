@@ -1,52 +1,63 @@
-import { useFormik } from 'formik';
-import toast from 'react-hot-toast';
-import { useTranslation } from 'next-i18next';
-import { Button, Input } from 'react-daisyui';
-
-import type { ApiResponse } from 'types';
+import { InputWithLabel } from '@/components/shared';
 import { Card } from '@/components/shared';
-import { defaultHeaders } from '@/lib/common';
-import { User } from '@prisma/client';
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/router';
-import { updateAccountSchema } from '@/lib/zod';
+import { useTranslation } from 'next-i18next';
+import { useFormik } from 'formik';
+import * as Yup from 'yup';
+import { useState } from 'react';
+import { Button } from 'react-daisyui';
+import toast from 'react-hot-toast';
+import { useSession, useUser } from '@/hooks/auth';
+import { ApiResponse } from 'types';
+import { maxLengthPolicies } from '@/lib/common';
 
-const UpdateName = ({ user }: { user: Partial<User> }) => {
+const UpdateName = ({ user }: { user: any }) => {
   const { t } = useTranslation('common');
   const { update } = useSession();
-  const router = useRouter();
+  const { user: clerkUser } = useUser();
+  const [loading, setLoading] = useState(false);
 
   const formik = useFormik({
     initialValues: {
-      name: user.name,
+      name: user.name || '',
     },
-    validateOnBlur: false,
+    validationSchema: Yup.object().shape({
+      name: Yup.string()
+        .max(maxLengthPolicies.name)
+        .required(t('name-required')),
+    }),
     enableReinitialize: true,
-    validate: (values) => {
-      try {
-        updateAccountSchema.parse(values);
-      } catch (error: any) {
-        return error.formErrors.fieldErrors;
-      }
-    },
     onSubmit: async (values) => {
+      setLoading(true);
+
       const response = await fetch('/api/users', {
-        method: 'PUT',
-        headers: defaultHeaders,
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(values),
       });
 
+      setLoading(false);
+
+      const json = (await response.json()) as ApiResponse;
+
       if (!response.ok) {
-        const json = (await response.json()) as ApiResponse;
         toast.error(json.error.message);
         return;
       }
 
-      await update({
-        name: values.name,
-      });
+      // Update Clerk user profile
+      if (clerkUser) {
+        try {
+          await clerkUser.update({
+            firstName: values.name.split(' ')[0],
+            lastName: values.name.split(' ').slice(1).join(' '),
+          });
+        } catch (error) {
+          console.error('Failed to update Clerk profile:', error);
+        }
+      }
 
-      router.replace('/settings/account');
       toast.success(t('successfully-updated'));
     },
   });
@@ -59,9 +70,10 @@ const UpdateName = ({ user }: { user: Partial<User> }) => {
             <Card.Title>{t('name')}</Card.Title>
             <Card.Description>{t('name-appearance')}</Card.Description>
           </Card.Header>
-          <Input
+          <InputWithLabel
             type="text"
             name="name"
+            label={t('name')}
             placeholder={t('your-name')}
             value={formik.values.name}
             onChange={formik.handleChange}
@@ -73,7 +85,7 @@ const UpdateName = ({ user }: { user: Partial<User> }) => {
           <Button
             type="submit"
             color="primary"
-            loading={formik.isSubmitting}
+            loading={loading}
             disabled={!formik.dirty || !formik.isValid}
             size="md"
           >

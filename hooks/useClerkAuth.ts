@@ -1,7 +1,7 @@
 import { useAuth, useOrganization, useUser, useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
 import { Role } from '@prisma/client';
-import { CLERK_ROLES } from '@/lib/clerk';
+import { CLERK_ROLES } from '@/lib/clerk-constants';
 import { useEffect, useState } from 'react';
 import { ApiError } from '@/lib/errors';
 

@@ -1,15 +1,22 @@
 import { NextPage } from 'next';
-import { Session } from 'next-auth';
 import { AppProps } from 'next/app';
 import { ReactElement, ReactNode } from 'react';
 
 export type AppPropsWithLayout = AppProps & {
   Component: NextPageWithLayout;
-  pageProps: {
-    session?: Session;
-  };
+  pageProps: Record<string, any>;
 };
 
-export type NextPageWithLayout<P = Record<string, unknown>> = NextPage<P> & {
+export type NextPageWithLayout<P = Record<string, unknown>, IP = P> = NextPage<
+  P,
+  IP
+> & {
   getLayout?: (page: ReactElement) => ReactNode;
+};
+
+export type NextPageWithUser<P = Record<string, unknown>, IP = P> = NextPage<
+  P,
+  IP
+> & {
+  requireAuth: boolean;
 };

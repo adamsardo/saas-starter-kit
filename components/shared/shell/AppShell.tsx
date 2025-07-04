@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Loading } from '@/components/shared';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/auth';
 import React from 'react';
 import Header from './Header';
 import Drawer from './Drawer';
@@ -11,17 +11,17 @@ export default function AppShell({ children }) {
   const router = useRouter();
   const { status } = useSession();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, isLoaded: clerkLoaded } = useUser();
+  const { isLoaded: clerkLoaded, isSignedIn, user } = useUser();
 
-  // Use Clerk auth status if available, otherwise fall back to NextAuth
+  // Check authentication status
   const isLoading = clerkLoaded === false || (clerkLoaded && !user && status === 'loading');
   const isAuthenticated = user || status === 'authenticated';
 
-  if (isLoading) {
+  if (status === 'loading') {
     return <Loading />;
   }
 
-  if (!isAuthenticated) {
+  if (status === 'unauthenticated') {
     router.push('/auth/login');
     return;
   }

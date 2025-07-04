@@ -1,7 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { getCookie } from 'cookies-next';
 import { getSession } from '@/lib/session';
-import { sessionTokenCookieName } from '@/lib/nextAuth';
 import { findManySessions } from 'models/session';
 
 export default async function handler(
@@ -30,7 +28,6 @@ export default async function handler(
 // Fetch all sessions for the current user
 const handleGET = async (req: NextApiRequest, res: NextApiResponse) => {
   const session = await getSession(req, res);
-  const sessionToken = await getCookie(sessionTokenCookieName, { req, res });
 
   let sessions = await findManySessions({
     where: {
@@ -38,9 +35,12 @@ const handleGET = async (req: NextApiRequest, res: NextApiResponse) => {
     },
   });
 
-  sessions.map(
-    (session) => (session['isCurrent'] = session.sessionToken === sessionToken)
-  );
+  // With Clerk, we don't have access to the current session token
+  // So we'll mark all sessions as not current
+  sessions = sessions.map(session => ({
+    ...session,
+    isCurrent: false
+  }));
 
   // Sort sessions by most recent
   sessions = sessions.sort(

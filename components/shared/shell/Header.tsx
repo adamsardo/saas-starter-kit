@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import React from 'react';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/auth';
 import {
   ArrowRightOnRectangleIcon,
   Bars3Icon,
@@ -12,6 +12,7 @@ import useTheme from 'hooks/useTheme';
 import env from '@/lib/env';
 import { useTranslation } from 'next-i18next';
 import { useCustomSignOut } from 'hooks/useCustomSignout';
+import { Loading } from '@/components/shared';
 
 interface HeaderProps {
   setSidebarOpen: React.Dispatch<React.SetStateAction<boolean>>;

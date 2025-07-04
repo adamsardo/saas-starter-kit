@@ -1,21 +1,13 @@
+import { useClerk } from '@clerk/nextjs';
 import { useRouter } from 'next/router';
 
 export function useCustomSignOut() {
   const router = useRouter();
+  const { signOut: clerkSignOut } = useClerk();
 
   const signOut = async () => {
     try {
-      const response = await fetch('/api/auth/custom-signout', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Signout failed');
-      }
-
+      await clerkSignOut();
       router.push('/auth/login');
     } catch (error) {
       console.error('Error during sign out:', error);

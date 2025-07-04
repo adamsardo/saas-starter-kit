@@ -1,25 +1,16 @@
-import type { SessionStrategy } from 'next-auth';
-
 const env = {
   databaseUrl: `${process.env.DATABASE_URL}`,
   appUrl: `${process.env.APP_URL}`,
   redirectIfAuthenticated: '/dashboard',
   securityHeadersEnabled: process.env.SECURITY_HEADERS_ENABLED ?? false,
 
-  // SMTP configuration for NextAuth
+  // SMTP configuration
   smtp: {
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT),
     user: process.env.SMTP_USER,
     password: process.env.SMTP_PASSWORD,
     from: process.env.SMTP_FROM,
-  },
-
-  // NextAuth configuration (to be removed after migration)
-  nextAuth: {
-    secret: process.env.NEXTAUTH_SECRET,
-    sessionStrategy: (process.env.NEXTAUTH_SESSION_STRATEGY ||
-      'jwt') as SessionStrategy,
   },
 
   // Clerk configuration

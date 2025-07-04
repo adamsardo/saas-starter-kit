@@ -42,13 +42,40 @@ jest.mock('@/lib/prisma', () => ({
   },
 }));
 
-// Mock NextAuth
-jest.mock('next-auth/react', () => ({
-  useSession: jest.fn(() => ({ 
-    data: mockSession, 
-    status: 'authenticated' 
+// Mock Clerk
+jest.mock('@clerk/nextjs', () => ({
+  useAuth: jest.fn(() => ({
+    isLoaded: true,
+    isSignedIn: true,
+    userId: 'user_123',
+  })),
+  useUser: jest.fn(() => ({
+    user: {
+      id: 'user_123',
+      email: 'test@example.com',
+      name: 'Test User',
+    },
+    isLoaded: true,
+  })),
+  useOrganization: jest.fn(() => ({
+    organization: {
+      id: 'org_123',
+      name: 'Test Org',
+    },
+    membership: {
+      role: 'org:admin',
+    },
+    isLoaded: true,
   })),
 }));
+
+// Mock environment
+process.env = {
+  ...process.env,
+  NODE_ENV: 'test',
+  DATABASE_URL: 'postgresql://test',
+  APP_URL: 'http://localhost:3000',
+};
 ```
 
 ## E2E Testing with Playwright

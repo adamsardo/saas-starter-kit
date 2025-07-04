@@ -4,7 +4,7 @@ import { WebhookEvent } from '@clerk/nextjs/server';
 import { prisma } from '@/lib/prisma';
 import env from '@/lib/env';
 import { Role } from '@prisma/client';
-import { CLERK_ROLES } from '@/lib/clerk';
+import { CLERK_ROLES } from '@/lib/clerk-constants';
 
 export default async function handler(
   req: NextApiRequest,

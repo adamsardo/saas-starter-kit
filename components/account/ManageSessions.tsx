@@ -1,26 +1,28 @@
-import useSWR from 'swr';
-import { useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import { ComputerDesktopIcon } from '@heroicons/react/24/outline';
-import toast from 'react-hot-toast';
-
+import { useState } from 'react';
 import fetcher from '@/lib/fetcher';
-import { Session } from '@prisma/client';
+import type { Session } from '@prisma/client';
+import useSWR from 'swr';
+import { defaultHeaders } from '@/lib/common';
+import toast from 'react-hot-toast';
 import { WithLoadingAndError } from '@/components/shared';
 import ConfirmationDialog from '@/components/shared/ConfirmationDialog';
 import { Table } from '@/components/shared/table/Table';
+import env from '@/lib/env';
+import { ApiResponse } from 'types';
+import { ComputerDesktopIcon } from '@heroicons/react/24/outline';
 
-type NextAuthSession = Session & { isCurrent: boolean };
+type UserSession = Session & { isCurrent: boolean };
 
 const ManageSessions = () => {
   const { t } = useTranslation('common');
-  const [askConfirmation, setAskConfirmation] = useState(false);
-  const [sessionToDelete, setSessionToDelete] =
-    useState<NextAuthSession | null>(null);
-
-  const { data, isLoading, error, mutate } = useSWR<{
-    data: NextAuthSession[];
-  }>(`/api/sessions`, fetcher);
+  const [loading, setLoading] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = 
+    useState<UserSession | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const { data, error, mutate, isLoading } = useSWR<ApiResponse<{
+    data: UserSession[];
+  }>>('/api/sessions', fetcher);
 
   const sessions = data?.data ?? [];
 
@@ -49,7 +51,7 @@ const ManageSessions = () => {
     } finally {
       mutate();
       setSessionToDelete(null);
-      setAskConfirmation(false);
+      setDialogOpen(false);
     }
   };
 
@@ -87,7 +89,7 @@ const ManageSessions = () => {
                       text: t('remove'),
                       onClick: () => {
                         setSessionToDelete(session);
-                        setAskConfirmation(true);
+                        setDialogOpen(true);
                       },
                     },
                   ],
@@ -99,10 +101,10 @@ const ManageSessions = () => {
 
         {sessionToDelete && (
           <ConfirmationDialog
-            visible={askConfirmation}
+            visible={dialogOpen}
             title={t('remove-browser-session')}
             onCancel={() => {
-              setAskConfirmation(false);
+              setDialogOpen(false);
               setSessionToDelete(null);
             }}
             onConfirm={() => deleteSession(sessionToDelete.id)}

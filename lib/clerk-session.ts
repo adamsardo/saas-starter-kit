@@ -2,7 +2,7 @@ import { auth, currentUser } from '@clerk/nextjs/server';
 import { NextApiRequest, NextApiResponse } from 'next';
 import { prisma } from '@/lib/prisma';
 import { Role } from '@prisma/client';
-import { CLERK_ROLES } from './clerk';
+import { CLERK_ROLES } from './clerk-constants';
 import { ApiError } from './errors';
 
 interface SessionUser {
