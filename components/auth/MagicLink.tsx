@@ -3,7 +3,7 @@ import { maxLengthPolicies } from '@/lib/common';
 import env from '@/lib/env';
 import { useFormik } from 'formik';
 import useInvitation from 'hooks/useInvitation';
-import { signIn, useSession } from 'next-auth/react';
+import { useSignIn, useSession } from '@/hooks/auth';
 import { useTranslation } from 'next-i18next';
 import Head from 'next/head';
 import Link from 'next/link';
@@ -17,16 +17,16 @@ interface MagicLinkProps {
 }
 
 const MagicLink = ({ csrfToken }: MagicLinkProps) => {
-  const router = useRouter();
-  const { status } = useSession();
   const { t } = useTranslation('common');
+  const signIn = useSignIn();
+  const { status } = useSession();
+  const router = useRouter();
   const { invitation } = useInvitation();
-
-  const params = invitation ? `?token=${invitation.token}` : '';
-
-  const callbackUrl = invitation
+  const redirectUrl = invitation
     ? `/invitations/${invitation.token}`
     : env.redirectIfAuthenticated;
+
+  const params = invitation ? `?token=${invitation.token}` : '';
 
   const formik = useFormik({
     initialValues: {
@@ -36,23 +36,18 @@ const MagicLink = ({ csrfToken }: MagicLinkProps) => {
       email: Yup.string().required().email().max(maxLengthPolicies.email),
     }),
     onSubmit: async (values) => {
-      const response = await signIn('email', {
-        email: values.email,
-        csrfToken,
-        redirect: false,
-        callbackUrl,
-      });
+      try {
+        await signIn('email', {
+          email: values.email,
+          redirect: false,
+          callbackUrl: redirectUrl,
+        });
 
-      formik.resetForm();
-
-      if (response?.error) {
-        toast.error(t('email-login-error'));
-        return;
-      }
-
-      if (response?.status === 200 && response?.ok) {
-        toast.success(t('email-login-success'));
-        return;
+        formik.resetForm();
+        
+        toast.success(t('magic-link-sent'));
+      } catch (error: any) {
+        toast.error(error.message || t('magic-link-error'));
       }
     },
   });
@@ -79,7 +74,7 @@ const MagicLink = ({ csrfToken }: MagicLinkProps) => {
               name="email"
               placeholder="jackson@boxyhq.com"
               value={formik.values.email}
-              descriptionText="We’ll email you a magic link for a password-free sign in."
+              descriptionText="We'll email you a magic link for a password-free sign in."
               error={formik.touched.email ? formik.errors.email : undefined}
               onChange={formik.handleChange}
             />

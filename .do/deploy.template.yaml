@@ -6,16 +6,34 @@ spec:
         branch: main
         repo_clone_url: https://github.com/boxyhq/saas-starter-kit.git
       envs:
-        - key: NEXTAUTH_URL
-          value: ${APP_URL}
         - key: APP_URL
+          scope: RUN_AND_BUILD_TIME
           value: ${APP_URL}
-        - key: NEXTAUTH_SECRET
+        - key: DATABASE_URL
+          scope: RUN_AND_BUILD_TIME
+          value: ${saas-starter-kit-db.DATABASE_URL}
+        - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+          scope: RUN_AND_BUILD_TIME
+        - key: CLERK_SECRET_KEY
+          scope: RUN_AND_BUILD_TIME
+        - key: CLERK_WEBHOOK_SECRET
+          scope: RUN_AND_BUILD_TIME
         - key: SMTP_HOST
         - key: SMTP_PORT
         - key: SMTP_USER
         - key: SMTP_PASSWORD
         - key: SMTP_FROM
-        - key: DATABASE_URL
         - key: SVIX_URL
         - key: SVIX_API_KEY
+      http_port: 4002
+      instance_count: 1
+      instance_size_slug: basic-xxs
+      name: saas-starter-kit
+      run_command: npm start
+      source_dir: /
+  databases:
+    - engine: PG
+      name: saas-starter-kit-db
+      num_nodes: 1
+      size: db-s-dev-database
+      version: "15"

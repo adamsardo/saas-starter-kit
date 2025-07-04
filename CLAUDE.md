@@ -13,7 +13,8 @@ This is an Enterprise SaaS Starter Kit built with Next.js, TypeScript, and Postg
 
 ## Essential Commands
 
-### Development```bash
+### Development
+```bash
 # Start development server (runs on port 4002)
 npm run dev
 
@@ -136,11 +137,14 @@ npm run worker:batch
 
 This is a **Next.js 15 application** using Pages Router with the following architectural patterns:
 
-1. **Authentication**: Dual authentication system during migration:
-   - **NextAuth.js** (Legacy): Email, OAuth (GitHub/Google), SAML SSO
-   - **Clerk** (New): Modern auth with MFA, social logins, enterprise SSO
-   - Session management with database persistence
-   - Webhook-based synchronization between systems
+1. **Authentication**: Clerk (Email/Password, OAuth, Magic Links, SAML SSO)
+- **Session Management**: Managed by Clerk infrastructure
+- **Security Features**:
+  - Attack protection (bot protection, rate limiting)
+  - Two-factor authentication
+  - Organization-based access control
+  - Security headers via middleware
+  - Password policies configurable in Clerk dashboard
 
 2. **Database**: PostgreSQL with Prisma ORM
    - Schema defined in `prisma/schema.prisma`
@@ -415,4 +419,31 @@ Check environment-based feature flags:
 if (!env.teamFeatures.mentalHealth) {
   return res.status(404).json({ error: { message: 'Feature not available' } });
 }
+```
+
+## 🏗️ Key Implementation Patterns
+
+### Authentication Flow
+1. User authenticates via Clerk (various methods)
+2. Clerk manages session tokens and JWTs
+3. Middleware protects routes using Clerk
+4. API routes verify session via `getCurrentUserWithTeam()`
+5. Permissions checked against RBAC system
+
+### Environment Variables
+```bash
+# Core
+DATABASE_URL=
+APP_URL=
+
+# Auth (Clerk)
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=
+CLERK_SECRET_KEY=
+CLERK_WEBHOOK_SECRET=
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/login
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/join
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+
+# ... other variables ...
 ```

@@ -73,11 +73,9 @@ const handlePOST = async (req: NextApiRequest, res: NextApiResponse) => {
   await unlockAccount(updatedUser);
 
   // Remove all active sessions for the user
-  if (env.nextAuth.sessionStrategy === 'database') {
-    await deleteManySessions({
-      where: { userId: updatedUser.id },
-    });
-  }
+  await deleteManySessions({
+    where: { userId: updatedUser.id },
+  });
 
   await deletePasswordReset(token);
 

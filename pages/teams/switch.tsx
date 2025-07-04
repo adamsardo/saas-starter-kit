@@ -6,13 +6,15 @@ import type {
   GetServerSidePropsContext,
   InferGetServerSidePropsType,
 } from 'next';
-import { useSession } from 'next-auth/react';
+import { useSession } from '@/hooks/auth';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import { useRouter } from 'next/router';
 import { type ReactElement, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import type { NextPageWithLayout } from 'types';
+import useTeams from 'hooks/useTeams';
+import Link from 'next/link';
 
 const Organizations: NextPageWithLayout<
   InferGetServerSidePropsType<typeof getServerSideProps>

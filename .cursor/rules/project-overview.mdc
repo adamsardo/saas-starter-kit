@@ -8,7 +8,7 @@ This is an enterprise-ready Next.js SaaS boilerplate built with TypeScript, feat
 ## Tech Stack
 - **Framework**: [next.config.js](mdc:next.config.js) - Next.js 15.x with TypeScript
 - **Database**: PostgreSQL with [prisma/schema.prisma](mdc:prisma/schema.prisma) - Prisma ORM
-- **Authentication**: [lib/nextAuth.ts](mdc:lib/nextAuth.ts) - NextAuth.js with multiple providers
+- **Authentication**: [middleware.ts](mdc:middleware.ts) - Clerk with multiple providers
 - **Styling**: Tailwind CSS + DaisyUI component library
 - **API**: RESTful endpoints in `pages/api/` following Next.js conventions
 - **State Management**: SWR for data fetching

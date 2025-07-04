@@ -3,7 +3,7 @@ import { InputWithLabel, Loading } from '@/components/shared';
 import env from '@/lib/env';
 import { useFormik } from 'formik';
 import { GetServerSidePropsContext, InferGetServerSidePropsType } from 'next';
-import { signIn, useSession } from 'next-auth/react';
+import { useSignIn, useSession } from '@/hooks/auth';
 import { useTranslation } from 'next-i18next';
 import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Link from 'next/link';
@@ -21,6 +21,7 @@ const SSO: NextPageWithLayout<
 > = ({ jacksonProductId }) => {
   const { t } = useTranslation('common');
   const { status } = useSession();
+  const signIn = useSignIn();
   const router = useRouter();
   const [useEmail, setUseEmail] = useState(true);
 
@@ -61,10 +62,14 @@ const SSO: NextPageWithLayout<
         toast.error(t('multiple-sso-teams'));
         return;
       }
-      await signIn('boxyhq-saml', undefined, {
+      
+      // For SAML SSO, we'll redirect to the SAML endpoint
+      const params = new URLSearchParams({
         tenant: data.teamId,
         product: jacksonProductId,
       });
+      
+      router.push(`/api/oauth/authorize?${params.toString()}`);
     },
   });
 

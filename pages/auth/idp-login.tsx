@@ -1,9 +1,10 @@
-import { signIn } from 'next-auth/react';
+import { useSignIn } from '@/hooks/auth';
 import { useRouter } from 'next/router';
 import { ReactElement, useEffect } from 'react';
 
 export default function SAMLIdPLogin() {
   const router = useRouter();
+  const signIn = useSignIn();
 
   const { isReady, query } = router;
 
@@ -14,9 +15,9 @@ export default function SAMLIdPLogin() {
 
     signIn('boxyhq-idp', {
       callbackUrl: '/dashboard',
-      code: query?.code,
+      code: query?.code as string,
     });
-  }, [isReady, query]);
+  }, [isReady, query, signIn]);
 
   return null;
 }

@@ -52,8 +52,8 @@ Next.js-based SaaS starter kit saves you months of development by starting you o
   This is a Node.js library for automating browsers. It's used to run end-to-end tests on the application. The Playwright configuration and tests can be found in the tests directory.
 - [Docker](https://www.docker.com) (Provides Docker Compose)
   This is a platform for developing, shipping, and running applications. It's used to containerize the application and its dependencies. The Docker configuration can be found in the Dockerfile and docker-compose.yml.
-- [NextAuth.js](https://next-auth.js.org) (Provides Authentication)
-  This is a complete open-source authentication solution for Next.js applications. It's used to handle user authentication and authorization. The NextAuth.js configuration and providers can be found in the `pages/api/auth/[...nextauth].ts` file.
+- [Clerk](https://clerk.com) (Provides Authentication)
+  This is a complete authentication solution for modern applications. It's used to handle user authentication, authorization, and user management. The Clerk configuration can be found in the environment variables and middleware.ts file.
 
 ## 🚀 Deployment
 
@@ -165,13 +165,27 @@ _Note: HTML test report is generated inside the `report` folder. Currently suppo
 
 To get started you only need to configure the database by following the steps above. For more advanced features, you can configure the following:
 
-### Authentication with NextAuth.js
+### Clerk Authentication
 
-The default login options are email and GitHub. Configure below:
+1. Create a Clerk account at [clerk.com](https://clerk.com)
+2. Create a new application
+3. Configure authentication methods:
+   - Email/Password
+   - OAuth providers (GitHub, Google)
+   - Magic Links
+4. Enable Organizations for multi-tenancy
+5. Configure webhook endpoint: `https://your-domain.com/api/webhooks/clerk`
+6. Set the following environment variables:
 
-1. Generate a secret key for NextAuth.js by running `openssl rand -base64 32` and adding it to the `.env` file as `NEXTAUTH_SECRET`.
-2. For email login, configure the `SMTP_*` environment variables in the `.env` file to send magic link login emails. You can use services like [AWS SES](https://aws.amazon.com/ses/), [Sendgrid](https://sendgrid.com/) or [Resend](https://resend.com/).
-3. For social login with GitHub and Google, you need to create OAuth apps in the respective developer consoles and add the client ID and secret to the `.env` file. The default is email login and For GitHub, follow the instructions [here](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app). For Google, follow the instructions [here](https://support.google.com/cloud/answer/6158849?hl=en).
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+CLERK_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/auth/login
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/auth/join
+NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL=/dashboard
+NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL=/dashboard
+```
 
 ### Svix Webhooks
 
@@ -202,36 +216,24 @@ The default login options are email and GitHub. Configure below:
 
 ## 🥇 Features
 
-- Create account
-- Sign in with Email and Password
-- Sign in with Magic Link
-- Sign in with SAML SSO
-- Sign in with Google [[Setting up Google OAuth](https://support.google.com/cloud/answer/6158849?hl=en)]
-- Sign in with GitHub [[Creating a Github OAuth App](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)]
-- Directory Sync (SCIM)
-- Update account
-- Create team
-- Delete team
-- Invite users to the team
-- Manage team members
-- Update team settings
-- Webhooks & Events
-- Internationalization
-- Audit logs
-- Roles and Permissions
-- Dark mode
-- Email notifications
-- E2E tests
-- Docker compose
-- Prisma Studio
-- Update member role
-- Directory Sync Events
-- Avatar Upload
-- SAML SSO
-- Audit Log
-- Webhook
-- Payments
-- Security Headers
+- 🗂️ Multi-tenancy: Each user can be part of multiple teams
+- 🔐 Authentication: Secure authentication with Clerk (Email/Password, OAuth, Magic Links, SAML SSO)
+- 👥 Team Management: Create teams, invite members, manage roles
+- 🏢 Enterprise Features: SAML SSO, Directory Sync (SCIM), Audit Logs, Webhooks
+- 💳 Billing: Stripe integration for subscriptions and payments
+- 🚀 API Support: REST API with API key authentication
+- 🌍 Internationalization: Multi-language support
+- 🎨 UI Components: Beautiful UI with Tailwind CSS and DaisyUI
+- 📱 Responsive: Mobile-friendly design
+- 🔒 Security: CSRF protection, rate limiting, security headers
+- 📧 Email Notifications: Transactional emails with SMTP support
+- 🔑 Two-Factor Authentication: Built-in 2FA support via Clerk
+- 🎯 Feature Flags: Control feature access per team
+- 📊 Analytics: Mixpanel integration for product analytics
+- 🔍 Logging: Structured logging with correlation IDs
+- 🧪 Testing: Unit tests with Jest, E2E tests with Playwright
+- 🐳 Docker Support: Ready for containerized deployments
+- 🚦 Health Checks: Built-in health monitoring endpoints
 
 ## ➡️ Coming Soon
 
@@ -269,3 +271,15 @@ Made with [contrib.rocks](https://contrib.rocks).
 ## 🛡️ License
 
 [Apache 2.0 License](https://github.com/boxyhq/saas-starter-kit/blob/main/LICENSE)
+
+## Tech Stack
+
+- [Next.js](https://nextjs.org) - React framework for production
+- [Clerk](https://clerk.com) - Authentication and user management
+- [Tailwind CSS](https://tailwindcss.com) - Utility-first CSS framework
+- [Prisma](https://www.prisma.io) - Next-generation ORM
+- [TypeScript](https://www.typescriptlang.org) - JavaScript with types
+- [PostgreSQL](https://www.postgresql.org) - Open source relational database
+- [Stripe](https://stripe.com) - Payment processing
+- [React Email](https://react.email) - Email templates with React
+- [Playwright](https://playwright.dev) - End-to-end testing

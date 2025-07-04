@@ -79,9 +79,3 @@ export async function requireAuth() {
 
   return { userId, orgId };
 }
-
-// Helper to check if authentication provider is enabled
-export function isAuthProviderEnabled(provider: string): boolean {
-  const enabledProviders = process.env.CLERK_ENABLED_AUTH_PROVIDERS || 'email,oauth';
-  return enabledProviders.split(',').includes(provider);
-}

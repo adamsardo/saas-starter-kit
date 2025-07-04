@@ -4,74 +4,88 @@ description: Authentication and security patterns used in the SaaS starter kit
 # Authentication & Security Patterns
 
 ## Authentication System
-The app uses NextAuth.js configured in [lib/nextAuth.ts](mdc:lib/nextAuth.ts) with multiple providers:
-- **Credentials**: Email/password with bcrypt hashing
+The app uses Clerk for authentication configured in [middleware.ts](mdc:middleware.ts) with multiple providers:
+- **Email/Password**: Secure authentication with password policies
 - **Magic Links**: Passwordless email authentication  
 - **OAuth**: GitHub and Google social login
-- **SAML SSO**: Enterprise SSO via BoxyHQ SAML Jackson
-- **IdP-initiated**: Support for IdP-initiated SAML flows
+- **SAML SSO**: Enterprise SSO (requires Clerk Enterprise plan)
+- **Two-Factor Auth**: Built-in 2FA support
 
 ## Session Management
-- Supports both JWT and database session strategies (configured via `NEXTAUTH_SESSION_STRATEGY`)
-- Database sessions enable features like session management UI and revocation
-- Session tokens stored in secure HTTP-only cookies
-- Default session duration: 14 days
+- Sessions managed by Clerk's infrastructure
+- Secure HTTP-only cookies and JWTs
+- Automatic session refresh and expiry
+- Multi-device session management
+- Session revocation through Clerk dashboard
 
 ## Security Features
-1. **Account Lockout** ([lib/accountLock.ts](mdc:lib/accountLock.ts))
-   - Max login attempts configurable (default: 5)
-   - Sends unlock email with verification token
-   - Clears attempts on successful login
+1. **Attack Protection** (Clerk Dashboard)
+   - Bot protection with CAPTCHA
+   - Brute force protection
+   - Rate limiting
+   - Suspicious IP blocking
 
-2. **Password Policies** ([lib/auth.ts](mdc:lib/auth.ts))
-   - Minimum 8 characters (configurable in `passwordPolicies`)
-   - Maximum 70 characters
-   - Validated on signup and password reset
+2. **Password Policies** (Clerk Dashboard)
+   - Configurable minimum length
+   - Complexity requirements
+   - Password history
+   - Expiration policies
 
 3. **Email Verification**
-   - Optional email verification (`CONFIRM_EMAIL=true`)
-   - Blocks login until email is verified
-   - Resend verification email functionality
+   - Built-in email verification
+   - Customizable email templates
+   - Automatic retry logic
 
-4. **reCAPTCHA Integration**
-   - Protects login, signup, and password reset forms
-   - Configured via `RECAPTCHA_SITE_KEY` and `RECAPTCHA_SECRET_KEY`
+4. **Organization Security**
+   - Multi-tenancy with organizations
+   - Role-based access control
+   - Invitation-only team access
+   - Domain allowlisting
 
-5. **Security Headers** (middleware.ts)
-   - HSTS, X-Frame-Options, X-Content-Type-Options
-   - CSP headers when security headers enabled
+5. **Security Headers** ([middleware.ts](mdc:middleware.ts))
+   - CSP, HSTS, X-Frame-Options
+   - Referrer Policy, CORS headers
+   - Configurable via environment
 
 ## Authorization Patterns
 1. **API Route Protection**
    ```typescript
    // Check session exists
-   const session = await getSession(req, res);
-   if (!session) {
+   const user = await getCurrentUserWithTeam(req, res);
+   if (!user) {
      return res.status(401).json({ error: 'Unauthorized' });
    }
    
    // Check team access
-   const teamMember = await throwIfNoTeamAccess(req, res);
+   await throwIfNoTeamAccess(req, res, teamId);
    
    // Check specific permissions
-   throwIfNotAllowed(teamMember, 'team_webhook', 'create');
+   await throwIfNotAllowed(user, 'team_webhook', 'create');
    ```
 
-2. **Page Protection** (middleware.ts)
-   - Public routes: auth pages, landing, API routes
-   - Protected routes require authentication
-   - Team-specific routes validate team membership
+2. **Page Protection** ([middleware.ts](mdc:middleware.ts))
+   - Public routes: auth pages, landing, webhooks
+   - Protected routes enforced by Clerk middleware
+   - Organization-specific routes validate membership
 
 3. **RBAC System**
    - Roles: OWNER, ADMIN, MEMBER
    - Permissions defined in [lib/permissions.ts](mdc:lib/permissions.ts)
+   - Clerk organization roles mapped to app roles
    - UI components use `AccessControl` wrapper
 
+## Migration from NextAuth
+- Session format compatible during migration
+- User data synced via Clerk webhooks
+- Gradual migration supported
+- Database maintains user/team relationships
+
 ## Best Practices
-- Never return sensitive data (passwords, API keys) in responses
-- Use `validateWithSchema` for input validation with Zod
-- Hash passwords with bcrypt (12 rounds)
-- Generate secure tokens with crypto.randomBytes
-- Validate email domains for business emails only (optional)
-- Clear all sessions on password reset
-- Use prepared statements via Prisma to prevent SQL injection
+- Use Clerk's built-in security features
+- Configure organization settings properly
+- Enable all relevant security features in Clerk dashboard
+- Use `throwIfNotAllowed` for permission checks
+- Validate input with Zod schemas
+- Keep sensitive operations server-side
+- Monitor Clerk webhook events
+- Use environment-specific Clerk instances
